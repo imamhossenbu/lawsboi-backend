@@ -12,5 +12,5 @@ const header = `// Generated from the live schema by \`npm run db:types\` (supab
 // generated public_id columns as non-null, which gen types can't know.
 
 `;
-writeFileSync(new URL("../src/types/database.ts", import.meta.url), header + generated.replace(/public_id: string \| null/g, "public_id: string"));
+writeFileSync(new URL("../src/types/database.ts", import.meta.url), header + generated.replace(/"public_id": string \| null/g, '"public_id": string'));
 console.log("src/types/database.ts updated");

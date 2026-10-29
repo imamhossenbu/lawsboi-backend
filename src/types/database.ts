@@ -37,7 +37,7 @@ isOneToOne: false
                   ]
                 },"announcements": {
                   Row: {
-                    "at": string,"banner_ended": boolean,"banner_until": string | null,"body": string,"body_bn": string,"channels": (Database["public"]['Enums']["announcement_channel"])[],"created_at": string,"created_by": string | null,"delivery": Json | null,"id": string,"link": string | null,"number": number,"plan_ids": (string)[],"public_id": string | null,"status": Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at": string
+                    "at": string,"banner_ended": boolean,"banner_until": string | null,"body": string,"body_bn": string,"channels": (Database["public"]['Enums']["announcement_channel"])[],"created_at": string,"created_by": string | null,"delivery": Json | null,"id": string,"link": string | null,"number": number,"plan_ids": (string)[],"public_id": string,"status": Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
@@ -279,7 +279,7 @@ isOneToOne: false
                   ]
                 },"payments": {
                   Row: {
-                    "amount": number,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"],"id": string,"method": Database["public"]['Enums']["payment_method"],"number": number,"plan_id": string,"public_id": string | null,"reason": Database["public"]['Enums']["reject_reason"] | null,"refunded_at": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"status": Database["public"]['Enums']["payment_status"],"submitted_at": string,"subscription_id": string | null,"trx_id": string,"updated_at": string,"user_id": string
+                    "amount": number,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"],"id": string,"method": Database["public"]['Enums']["payment_method"],"number": number,"plan_id": string,"public_id": string,"reason": Database["public"]['Enums']["reject_reason"] | null,"refunded_at": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"status": Database["public"]['Enums']["payment_status"],"submitted_at": string,"subscription_id": string | null,"trx_id": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
@@ -331,7 +331,7 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "active": boolean,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"] | null,"email": string,"id": string,"joined_at": string,"lang": Database["public"]['Enums']["lang"],"last_active_at": string,"location": string,"name": string,"name_bn": string | null,"notifications": NonNullable<Json>,"organization": string,"phone": string,"photo_url": string | null,"plan_id": string,"preferences": NonNullable<Json>,"profession": string,"public_id": string | null,"reader_no": number,"updated_at": string
+                    "active": boolean,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"] | null,"email": string,"id": string,"joined_at": string,"lang": Database["public"]['Enums']["lang"],"last_active_at": string,"location": string,"name": string,"name_bn": string | null,"notifications": NonNullable<Json>,"organization": string,"phone": string,"photo_url": string | null,"plan_id": string,"preferences": NonNullable<Json>,"profession": string,"public_id": string,"reader_no": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
@@ -385,7 +385,7 @@ isOneToOne: false
                   ]
                 },"subscriptions": {
                   Row: {
-                    "amount": number,"auto_renew": boolean,"canceled_at": string | null,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"],"id": string,"number": number,"plan_id": string,"public_id": string | null,"renews_at": string | null,"started_at": string,"status": Database["public"]['Enums']["subscription_status"],"updated_at": string,"user_id": string
+                    "amount": number,"auto_renew": boolean,"canceled_at": string | null,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"],"id": string,"number": number,"plan_id": string,"public_id": string,"renews_at": string | null,"started_at": string,"status": Database["public"]['Enums']["subscription_status"],"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
@@ -411,7 +411,7 @@ isOneToOne: false
                   ]
                 },"team_members": {
                   Row: {
-                    "accepted_at": string | null,"active": boolean,"created_at": string,"email": string,"id": string,"invited_at": string | null,"invited_by": string | null,"member_no": number,"must_change_password": boolean,"name": string,"name_bn": string | null,"permissions": (string)[],"phone": string,"photo_url": string | null,"public_id": string | null,"role": Database["public"]['Enums']["team_role"],"signature": string,"signature_bn": string,"updated_at": string
+                    "accepted_at": string | null,"active": boolean,"created_at": string,"email": string,"id": string,"invited_at": string | null,"invited_by": string | null,"member_no": number,"must_change_password": boolean,"name": string,"name_bn": string | null,"permissions": (string)[],"phone": string,"photo_url": string | null,"public_id": string,"role": Database["public"]['Enums']["team_role"],"signature": string,"signature_bn": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
@@ -497,7 +497,7 @@ isOneToOne: false
                   ]
                 },"tickets": {
                   Row: {
-                    "assignee_id": string | null,"category": Database["public"]['Enums']["ticket_category"],"created_at": string,"id": string,"lang": Database["public"]['Enums']["lang"],"last_message_at": string,"number": number,"priority": Database["public"]['Enums']["ticket_priority"],"public_id": string | null,"resolved_at": string | null,"status": Database["public"]['Enums']["ticket_status"],"subject": string,"updated_at": string,"user_id": string
+                    "assignee_id": string | null,"category": Database["public"]['Enums']["ticket_category"],"created_at": string,"id": string,"lang": Database["public"]['Enums']["lang"],"last_message_at": string,"number": number,"priority": Database["public"]['Enums']["ticket_priority"],"public_id": string,"resolved_at": string | null,"status": Database["public"]['Enums']["ticket_status"],"subject": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {

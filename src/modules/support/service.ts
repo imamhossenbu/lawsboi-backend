@@ -4,6 +4,7 @@ import { notFound, unwrap } from "../../lib/errors.js";
 import { sendMail } from "../../lib/mail/send.js";
 import { ticketInboxMail, ticketReplyMail } from "../../lib/mail/templates/ticket.js";
 import { db } from "../../lib/supabase.js";
+import type { TablesUpdate } from "../../types/database.js";
 import type {
   Lang,
   MessageKind,
@@ -179,7 +180,7 @@ export async function changeField(full: TicketFull, field: Field, value: string 
   const before = ticket[column];
   if (before === value) return full;
 
-  const patch: Partial<TicketRow> = { [column]: value } as Partial<TicketRow>;
+  const patch: TablesUpdate<"tickets"> = { [column]: value };
   if (field === "status") {
     const status = value as TicketStatus;
     patch.resolved_at = isDone(status) ? (isDone(ticket.status) ? ticket.resolved_at : new Date().toISOString()) : null;
