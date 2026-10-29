@@ -99,11 +99,20 @@ create table public.judgment_laws (
 create index judgment_laws_law_idx on public.judgment_laws (law_slug);
 
 -- Full-text search over titles and descriptions; section text comes later with its own index.
+-- array_to_string isn't marked immutable, which a generated column needs, so it gets an immutable wrapper.
+create or replace function public.join_words(words text[])
+returns text
+language sql
+immutable
+as $$
+  select array_to_string(words, ' ');
+$$;
+
 alter table public.laws add column search tsvector
   generated always as (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(title_bn, '') || ' ' || coalesce(act_no, '') || ' ' || coalesce(description, ''))) stored;
 create index laws_search_idx on public.laws using gin (search);
 alter table public.judgments add column search tsvector
-  generated always as (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(citation, '') || ' ' || coalesce(excerpt, '') || ' ' || array_to_string(keywords, ' '))) stored;
+  generated always as (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(citation, '') || ' ' || coalesce(excerpt, '') || ' ' || public.join_words(keywords))) stored;
 create index judgments_search_idx on public.judgments using gin (search);
 
 -- What readers asked the assistant, for their monthly allowance and the content team's review
