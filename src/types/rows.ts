@@ -3,9 +3,6 @@
 
 import type { Enums, Tables } from "./database.js";
 
-// Generated columns come out nullable from `gen types`; a stored generated column always has a value.
-type WithPublicId<T> = Omit<T, "public_id"> & { public_id: string };
-
 export type Lang = Enums<"lang">;
 export type BillingCycle = Enums<"billing_cycle">;
 export type SubscriptionStatus = Enums<"subscription_status">;
@@ -26,17 +23,17 @@ export type AnnouncementChannel = Enums<"announcement_channel">;
 export type NotificationTopic = Enums<"notification_topic">;
 
 export type PlanRow = Tables<"plans">;
-export type ProfileRow = WithPublicId<Tables<"profiles">>;
-export type TeamMemberRow = WithPublicId<Tables<"team_members">>;
+export type ProfileRow = Tables<"profiles">;
+export type TeamMemberRow = Tables<"team_members">;
 export type EmailOtpRow = Tables<"email_otps">;
 export type WalletAccountRow = Tables<"wallet_accounts">;
-export type SubscriptionRow = WithPublicId<Tables<"subscriptions">>;
-export type PaymentRow = WithPublicId<Tables<"payments">>;
-export type TicketRow = WithPublicId<Tables<"tickets">>;
+export type SubscriptionRow = Tables<"subscriptions">;
+export type PaymentRow = Tables<"payments">;
+export type TicketRow = Tables<"tickets">;
 export type TicketMessageRow = Tables<"ticket_messages">;
 export type TicketFileRow = Tables<"ticket_files">;
 export type TicketEventRow = Tables<"ticket_events">;
-export type AnnouncementRow = WithPublicId<Tables<"announcements">>;
+export type AnnouncementRow = Tables<"announcements">;
 export type HelpArticleRow = Tables<"help_articles">;
 export type FaqRow = Tables<"faqs">;
 export type SitePageRow = Tables<"site_pages">;

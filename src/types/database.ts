@@ -1,5 +1,6 @@
 // Generated from the live schema by `npm run db:types` (supabase gen types). Do not edit by hand: change a
-// migration, apply it, and regenerate. Row aliases the code uses live in rows.ts.
+// migration, apply it, and regenerate. Row aliases the code uses live in rows.ts. The script marks the stored
+// generated public_id columns as non-null, which gen types can't know.
 
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]

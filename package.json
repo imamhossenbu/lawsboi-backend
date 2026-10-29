@@ -16,7 +16,7 @@
     "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts",
     "seed:plans": "tsx --env-file=.env scripts/seed-plans.ts",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --db-url \"$DATABASE_URL\" --schema public > src/types/database.ts",
+    "db:types": "tsx --env-file=.env scripts/gen-types.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts"
   },
   "dependencies": {
