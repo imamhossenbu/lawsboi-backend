@@ -1,4 +1,4 @@
-import type { ProfileRow } from "../../types/database.js";
+import type { ProfileRow } from "../../types/rows.js";
 
 /** The reader as the reader site sees themselves. */
 export function profileOf(p: ProfileRow) {

@@ -4,7 +4,7 @@ import { requireReader } from "../../middleware/auth.js";
 import { parsed, validate } from "../../middleware/validate.js";
 import { forbidden, notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
-import type { TicketRow } from "../../types/database.js";
+import type { TicketRow } from "../../types/rows.js";
 import { newTicketSchema, pageQuery, readerMessageSchema, ticketIdParam } from "./schemas.js";
 import { addMessage, changeField, createTicket, fileUrl, isDone, loadTicket, type TicketFull } from "./service.js";
 import { attachments } from "./upload.js";

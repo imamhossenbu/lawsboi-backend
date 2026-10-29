@@ -4,7 +4,7 @@ import { requirePermission, requireTeam } from "../../../middleware/auth.js";
 import { parsed, validate } from "../../../middleware/validate.js";
 import { unwrap } from "../../../lib/errors.js";
 import { db } from "../../../lib/supabase.js";
-import type { ProfileRow } from "../../../types/database.js";
+import type { ProfileRow } from "../../../types/rows.js";
 import { logAudit } from "../../audit/service.js";
 
 // Readers, as the admin panel's Users page and the support screens see them.

@@ -4,7 +4,7 @@ import { sendMail, type MailResult } from "../../lib/mail/send.js";
 import { otpMail } from "../../lib/mail/templates/otp.js";
 import { codeMatches, hashCode, newCode, OTP_MAX_ATTEMPTS, OTP_RESEND_MS, OTP_TTL_MS } from "../../lib/otp.js";
 import { authClient, db } from "../../lib/supabase.js";
-import type { Lang, OtpPurpose } from "../../types/database.js";
+import type { Lang, OtpPurpose } from "../../types/rows.js";
 
 // Readers' accounts. Supabase Auth keeps the credentials; this API runs the email codes around them so that
 // sign-up and password resets go through our own mailbox, in the reader's language.

@@ -4,7 +4,7 @@ import { sendMail, type MailResult } from "../../../lib/mail/send.js";
 import { inviteMail } from "../../../lib/mail/templates/invite.js";
 import { temporaryPassword } from "../../../lib/passwords.js";
 import { db } from "../../../lib/supabase.js";
-import type { Lang, TeamMemberRow, TeamRole } from "../../../types/database.js";
+import type { Lang, TeamMemberRow, TeamRole } from "../../../types/rows.js";
 import { normalizePermissions, presets, type Action } from "./permissions.js";
 
 /** A team member as the admin panel lists them. */

@@ -17,7 +17,7 @@ import type {
   TicketPriority,
   TicketRow,
   TicketStatus,
-} from "../../types/database.js";
+} from "../../types/rows.js";
 
 // Everything that happens to a ticket, for both sides. The reader's router and the admin's router call these and
 // shape the result for their own screens; the rules (who is told, what is logged) live here once.

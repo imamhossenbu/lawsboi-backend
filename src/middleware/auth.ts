@@ -1,7 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { db } from "../lib/supabase.js";
 import { forbidden, unauthorized } from "../lib/errors.js";
-import type { ProfileRow, TeamMemberRow } from "../types/database.js";
+import type { ProfileRow, TeamMemberRow } from "../types/rows.js";
 import { can, type Action } from "../modules/admin/team/permissions.js";
 
 // Who is calling. Both readers and team members send the Supabase access token they got from the sign-in routes

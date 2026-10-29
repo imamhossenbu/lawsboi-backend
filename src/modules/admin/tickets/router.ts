@@ -4,7 +4,7 @@ import { requirePermission, requireTeam } from "../../../middleware/auth.js";
 import { parsed, validate } from "../../../middleware/validate.js";
 import { badRequest, unwrap } from "../../../lib/errors.js";
 import { db } from "../../../lib/supabase.js";
-import type { TeamMemberRow, TicketStatus } from "../../../types/database.js";
+import type { TeamMemberRow, TicketStatus } from "../../../types/rows.js";
 import { logAudit } from "../../audit/service.js";
 import { categories, priorities, statuses, ticketIdParam } from "../../support/schemas.js";
 import { addMessage, changeField, createTicket, fileUrl, loadTicket, type Actor, type Field, type TicketFull } from "../../support/service.js";

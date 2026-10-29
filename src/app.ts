@@ -5,11 +5,26 @@ import { pinoHttp } from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
+import { adminAnnouncementsRouter } from "./modules/admin/announcements/router.js";
+import { adminAssistantRouter } from "./modules/admin/assistant/router.js";
+import { adminAuditRouter } from "./modules/admin/audit/router.js";
 import { adminAuthRouter } from "./modules/admin/auth/router.js";
+import { adminBillingRouter } from "./modules/admin/billing/router.js";
+import { adminCatalogueRouter } from "./modules/admin/catalogue/router.js";
+import { adminContentRouter } from "./modules/admin/content/router.js";
+import { adminDashboardRouter } from "./modules/admin/dashboard/router.js";
+import { adminFlagsRouter } from "./modules/admin/flags/router.js";
+import { adminHealthRouter } from "./modules/admin/health/router.js";
+import { adminSettingsRouter } from "./modules/admin/settings/router.js";
 import { teamRouter } from "./modules/admin/team/router.js";
 import { adminTicketsRouter } from "./modules/admin/tickets/router.js";
 import { usersRouter } from "./modules/admin/users/router.js";
+import { assistantRouter } from "./modules/assistant/router.js";
 import { authRouter } from "./modules/auth/router.js";
+import { billingRouter } from "./modules/billing/router.js";
+import { catalogueRouter } from "./modules/catalogue/router.js";
+import { contentRouter } from "./modules/content/router.js";
+import { libraryRouter } from "./modules/library/router.js";
 import { meRouter } from "./modules/me/router.js";
 import { supportRouter } from "./modules/support/router.js";
 
@@ -34,16 +49,31 @@ export function createApp() {
 
   app.get("/health", (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
-  // Readers
+  // Public and readers
   app.use("/auth", authRouter);
   app.use("/me", meRouter);
   app.use("/support", supportRouter);
+  app.use("/catalogue", catalogueRouter);
+  app.use("/assistant", assistantRouter);
+  app.use("/billing", billingRouter);
+  app.use("/library", libraryRouter);
+  app.use("/content", contentRouter);
 
   // The admin panel's team
   app.use("/admin/auth", adminAuthRouter);
   app.use("/admin/team", teamRouter);
   app.use("/admin/users", usersRouter);
   app.use("/admin/tickets", adminTicketsRouter);
+  app.use("/admin/catalogue", adminCatalogueRouter);
+  app.use("/admin/assistant", adminAssistantRouter);
+  app.use("/admin/billing", adminBillingRouter);
+  app.use("/admin/dashboard", adminDashboardRouter);
+  app.use("/admin/audit", adminAuditRouter);
+  app.use("/admin/settings", adminSettingsRouter);
+  app.use("/admin/health", adminHealthRouter);
+  app.use("/admin/content", adminContentRouter);
+  app.use("/admin/announcements", adminAnnouncementsRouter);
+  app.use("/admin/flags", adminFlagsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

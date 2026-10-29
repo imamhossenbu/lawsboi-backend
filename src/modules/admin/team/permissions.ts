@@ -1,4 +1,4 @@
-import type { TeamMemberRow, TeamRole } from "../../../types/database.js";
+import type { TeamMemberRow, TeamRole } from "../../../types/rows.js";
 
 // The same catalogue as the admin panel's lib/admin/permissions.ts: what a team member may do, action by action.
 // "view" opens a part of the panel; every other action in that part needs it. Keep the two files in step.
