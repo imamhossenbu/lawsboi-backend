@@ -37,8 +37,10 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
+    "@types/supertest": "^7.2.1",
     "pino-pretty": "^13.2.0",
     "supabase": "^2.122.0",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
