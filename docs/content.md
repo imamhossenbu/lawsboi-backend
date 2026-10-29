@@ -9,7 +9,7 @@ Help articles, FAQs, the legal and about pages, the contact details and the feat
 | Method | Path | Auth | Query / body | Response |
 | --- | --- | --- | --- | --- |
 | GET | `/content/articles` | none | | `{ articles: Article[] }` published, in order |
-| GET | `/content/articles/:slug` | none | | `{ article: Article }` (404 unless published) |
+| GET | `/content/articles/:slug` | none (a reader token adds `myVote`) | | `{ article: Article, myVote: boolean \| null }` (404 unless published); `myVote` is the signed-in reader's earlier "Was this helpful?" answer |
 | POST | `/content/articles/:slug/read` | none | | 204 — counts an open (the article page calls it once) |
 | POST | `/content/articles/:slug/helpful` | reader | `{ helpful: boolean }` | `{ vote, helpful }` — the reader's vote (changeable) and the article's new % |
 | GET | `/content/faqs` | none | `?place=help\|pricing\|contact` | `{ faqs: Faq[] }` published, in order |

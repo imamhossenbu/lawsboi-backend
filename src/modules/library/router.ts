@@ -23,8 +23,16 @@ const HISTORY_LIMIT = 300;
 // Re-opening the same page (or repeating a search) within this window refreshes the entry instead of adding one
 const REPEAT_MS = 30 * 60_000;
 
+/** The public pages' paths (/bd/laws/…, /bd/cases/…) as the dashboard's, which is where saved items and history
+ * open: a reader on a public page can save or record the page they're on. */
+export const toDashboardPath = (path: string) => path.replace(/^\/bd\/(laws|cases)\//, "/dashboard/$1/");
+
 /** A dashboard path the item lives at: same-site, no query tricks. */
-const href = z.string().regex(/^\/dashboard\/[\w\-/.%]+$/, "Not a dashboard path.").max(300);
+const href = z
+  .string()
+  .max(300)
+  .transform(toDashboardPath)
+  .pipe(z.string().regex(/^\/dashboard\/[\w\-/.%]+$/, "Not a dashboard path."));
 
 const savedOf = (s: SavedRow) => ({ id: s.id, href: s.href, kind: s.kind, title: s.title, subtitle: s.subtitle, at: s.created_at });
 const collectionOf = (c: CollectionRow, items: string[]) => ({ id: c.id, name: c.name, description: c.description, icon: c.icon, color: c.color, createdAt: c.created_at, items });
@@ -159,7 +167,7 @@ const recordSchema = z.object({
   title: z.object({ en: z.string().trim().min(1).max(300), bn: z.string().trim().min(1).max(300) }),
   context: z.object({ en: z.string().trim().max(300), bn: z.string().trim().max(300) }).optional(),
   scope: z.enum(["laws", "cases"]).optional(),
-  href: z.string().max(400).regex(/^\/dashboard\//, "Not a dashboard path."),
+  href: z.string().max(400).transform(toDashboardPath).pipe(z.string().regex(/^\/dashboard\//, "Not a dashboard path.")),
 });
 
 /** Records a page opened or a search made, honouring the reader's "record" settings; a repeat within half an hour

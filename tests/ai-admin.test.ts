@@ -37,3 +37,14 @@ describe("admin AI helpers", () => {
     expect(prompts.lawReadInstruction()).toContain("do not translate");
   });
 });
+
+describe("judgment citations", async () => {
+  const { provisionRef, fromRoman } = await import("../src/modules/admin/ai/service.js");
+  it("stores an Order's rule the way imported judgments do", () => {
+    expect(fromRoman("XXXIX")).toBe(39);
+    expect(provisionRef("order", "XXXIX rule 1")).toEqual({ kind: "order", n: "39", rule: 1 });
+    expect(provisionRef("rule", "O.39 r.2")).toEqual({ kind: "order", n: "39", rule: 2 });
+    expect(provisionRef("order", "7")).toEqual({ kind: "order", n: "7", rule: null });
+    expect(provisionRef("section", "151")).toEqual({ kind: "section", n: "151", rule: null });
+  });
+});

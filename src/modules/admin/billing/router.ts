@@ -21,6 +21,7 @@ import {
   type ApiPlan,
 } from "../../billing/shared.js";
 import { adminUserOf } from "../users/router.js";
+import { notifyPayment } from "./mail.js";
 import { csvHeaders, toCsv } from "./csv.js";
 
 // The team's Plans & subscriptions and Payments pages.
@@ -122,11 +123,25 @@ adminBillingRouter.patch("/plans/:id", requirePermission("plans.edit"), validate
   res.json({ plan });
 });
 
+/** The pricing page's "Most popular" mark: one plan at most; `popular: false` takes it off. */
+adminBillingRouter.put("/plans/:id/popular", requirePermission("plans.edit"), validate("params", planIdParam), validate("body", z.object({ popular: z.boolean() })), async (req, res) => {
+  const { id } = parsed<{ id: string }>(req, "params");
+  const before = await findPlan(id);
+  const popular = (req.body as { popular: boolean }).popular;
+  if (popular && !before.active) throw badRequest("Activate the plan before marking it popular.", { plan: "inactive" });
+  if (popular) await db.from("plans").update({ popular: false }).eq("popular", true).neq("id", before.id);
+  const plan = planOf(unwrap(await db.from("plans").update({ popular }).eq("id", before.id).select("*").single()));
+  if (before.popular !== popular) await logAudit(req, { action: "plan.edit", target: planLabel(plan), changes: [{ field: "popular", from: before.popular, to: popular }] });
+  res.json({ plan });
+});
+
 /** Activate, deactivate or make default. The default plan can't be deactivated; another must be made default first. */
 adminBillingRouter.post("/plans/:id/:action", requirePermission("plans.activate"), validate("params", planIdParam.extend({ action: z.enum(["activate", "deactivate", "default", "duplicate"]) })), async (req, res) => {
   const { id, action } = parsed<{ id: string; action: string }>(req, "params");
   const before = await findPlan(id);
   if (action === "deactivate" && before.is_default) throw badRequest("Make another plan the default first.", { plan: "default" });
+  // A hidden plan can't stay the pricing page's "Most popular"
+  if (action === "deactivate" && before.popular) await db.from("plans").update({ popular: false }).eq("id", before.id);
   if (action === "duplicate") {
     const copy = unwrap(
       await db
@@ -356,16 +371,26 @@ async function reviewed(req: Parameters<typeof logAudit>[0], action: "payment.ve
   return { ...paymentOf(after), user: adminUserOf(user) };
 }
 
+/** The reader hears what happened to their payment (sent in the background). */
+async function emailOutcome(payment: Tables<"payments">, outcome: "verified" | "rejected") {
+  const [reader, plan] = await Promise.all([db.from("profiles").select("*").eq("id", payment.user_id).single(), db.from("plans").select("*").eq("id", payment.plan_id).maybeSingle()]);
+  if (reader.data) notifyPayment(payment, reader.data, plan.data, outcome);
+}
+
 adminBillingRouter.post("/payments/:id/verify", requirePermission("payments.verify"), validate("params", paymentIdParam), async (req, res) => {
   const before = await findPayment(parsed<{ id: string }>(req, "params").id);
   const after = await verifyPayment(before, req.member!.id);
-  res.json({ payment: await reviewed(req, "payment.verify", before, after, [{ field: "plan", to: after.plan_id }]) });
+  const payment = await reviewed(req, "payment.verify", before, after, [{ field: "plan", to: after.plan_id }]);
+  await emailOutcome(after, "verified");
+  res.json({ payment });
 });
 
 adminBillingRouter.post("/payments/:id/reject", requirePermission("payments.reject"), validate("params", paymentIdParam), validate("body", z.object({ reason: z.enum(["notFound", "amount", "duplicate"]) })), async (req, res) => {
   const before = await findPayment(parsed<{ id: string }>(req, "params").id);
   const after = await rejectPayment(before, req.member!.id, rejectReasonFrom(req.body.reason));
-  res.json({ payment: await reviewed(req, "payment.reject", before, after, [{ field: "reason", to: req.body.reason }]) });
+  const payment = await reviewed(req, "payment.reject", before, after, [{ field: "reason", to: req.body.reason }]);
+  await emailOutcome(after, "rejected");
+  res.json({ payment });
 });
 
 adminBillingRouter.post("/payments/:id/refund", requirePermission("payments.refund"), validate("params", paymentIdParam), async (req, res) => {

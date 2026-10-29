@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CASE_TYPES, COURTS } from "../../catalogue/schemas.js";
 import { sectionSchema, textSchema } from "../../content/shared.js";
 
 // Request bodies and the shapes the model must reply in. Reply schemas are also what the model is held to
@@ -85,3 +86,30 @@ export const lawReadReply = z.object({
   ),
 });
 export type LawRead = z.infer<typeof lawReadReply>;
+
+/** Options the import page sends with the files (multipart text fields). */
+export const lawReadOptions = z.object({
+  language: z.enum(["auto", "en", "bn"]).default("auto"),
+  // Only the statute: skip the gazette's cover, notes, amendment tables and anything after the last section
+  onlyStatute: z.enum(["true", "false"]).default("true").transform((v) => v === "true"),
+});
+
+export const caseReadReply = z.object({
+  title: z.string(),
+  citation: z.string(),
+  caseNo: z.string(),
+  court: z.enum(COURTS),
+  date: z.string(),
+  judges: z.array(z.string()),
+  author: z.string(),
+  type: z.enum(CASE_TYPES),
+  keywords: z.array(z.string()),
+  parties: z.object({ appellant: z.string(), respondent: z.string() }),
+  advocates: z.array(z.object({ side: z.string(), names: z.string() })),
+  excerpt: z.string(),
+  citationsReferred: z.array(z.string()),
+  laws: z.array(z.object({ act: z.string(), kind: z.enum(["section", "article", "order", "rule"]), n: z.string() })),
+  paragraphs: z.array(z.string()),
+  language: lang,
+});
+export type CaseRead = z.infer<typeof caseReadReply>;

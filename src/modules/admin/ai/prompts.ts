@@ -65,13 +65,27 @@ export function announcementInstruction(topic: string) {
   ].join("\n");
 }
 
-export function lawReadInstruction() {
+export function lawReadInstruction(options: { language?: Lang; onlyStatute?: boolean } = {}) {
   return [
+    ...(options.language ? [`The pages are printed in ${langName(options.language)}.`] : []),
+    ...(options.onlyStatute
+      ? ["Read only the statute itself: skip the gazette's cover and masthead, editorial notes, amendment tables, schedules of repealed laws and anything after the last section."]
+      : []),
     "You are reading photographed or scanned pages (or a PDF) of a law of Bangladesh to enter it into a legal database.",
     "Transcribe it exactly as printed, in the language it is printed in (do not translate, do not modernise spelling, do not summarise).",
     "Return the law's details (title, act number like \"Act No. XLV of 1860\" as printed, year, type: act | ordinance | po | constitution, language: en | bn, date of enactment as printed, long title, preamble) and its parts (chapters) with their sections.",
     "A section has its number as printed (\"1\", \"14A\"), its heading, and its text as blocks: kind para for a paragraph or numbered sub-section (mark is its number like \"(1)\"), kind clause for a lettered clause (mark like \"(a)\"), kind tail for the closing words after a list of clauses.",
     "Put a law with no chapters in one part with an empty title. For each section list in unsure the exact words you could not read with confidence, and give page as the 1-based page or image it is on.",
     "If the pages are not a law, return an empty parts list.",
+  ].join("\n");
+}
+
+export function caseReadInstruction() {
+  return [
+    "You are reading a judgment of the Supreme Court of Bangladesh (usually a SCOB report PDF) to enter it into a legal database.",
+    "Transcribe the judgment's paragraphs exactly as printed, in order, one string per numbered paragraph (keep its number at the start), in the language it is printed in. Do not summarise or translate the paragraphs.",
+    "Fill the details from the report: the parties' names as the title (\"Appellant v. Respondent\"), the citation as printed (e.g. \"19 SCOB [2024] AD 1\"), case number, court (AD for the Appellate Division, HCD for the High Court Division), the date of judgment as YYYY-MM-DD (empty if not printed), the judges, the judge who wrote it, the kind of case (civil, criminal, writ, company, tax, labour, family or others), keywords from the headnote, the advocates for each side, and other reported cases it refers to.",
+    "excerpt is the report's headnote or summary if printed, else the judgment's key holding in one or two sentences quoted from it.",
+    "laws lists every provision it relies on: the act's name as written, the kind (section, article, order, rule) and the number.",
   ].join("\n");
 }

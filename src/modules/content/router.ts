@@ -21,10 +21,20 @@ contentRouter.get("/articles", async (_req, res) => {
 
 const slugParam = z.object({ slug: z.string().regex(/^[a-z0-9-]{1,60}$/) });
 
+/** The signed-in reader behind an optional token, or null; a bad token is just "signed out" here. */
+async function optionalReaderId(authorization: string | undefined) {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  const { data } = await db.auth.getUser(authorization.slice(7));
+  return data.user?.id ?? null;
+}
+
+/** One article; with a reader's token, `myVote` is their earlier answer to "Was this helpful?" (null when none). */
 contentRouter.get("/articles/:slug", validate("params", slugParam), async (req, res) => {
   const { slug } = parsed<{ slug: string }>(req, "params");
-  const a = unwrap(await db.from("help_articles").select("*").eq("slug", slug).eq("status", "published").maybeSingle(), "That article");
-  res.json({ article: articleOf(a) });
+  const [a, readerId] = await Promise.all([db.from("help_articles").select("*").eq("slug", slug).eq("status", "published").maybeSingle(), optionalReaderId(req.headers.authorization)]);
+  const article = unwrap(a, "That article");
+  const vote = readerId ? (await db.from("help_article_votes").select("helpful").eq("article_slug", article.slug).eq("user_id", readerId).maybeSingle()).data : null;
+  res.json({ article: articleOf(article), myVote: vote ? vote.helpful : null });
 });
 
 /** Counts an open; anonymous readers count too. */
@@ -81,12 +91,25 @@ async function announcementByPublicId(id: string) {
 }
 
 /** The bell: what reached this reader in the app, newest first, with read state. */
-contentRouter.get("/announcements", requireReader, async (req, res) => {
+const bellQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  // Paging: items delivered before this moment (the last item's `at`)
+  before: z.iso.datetime({ offset: true }).optional(),
+});
+
+contentRouter.get("/announcements", requireReader, validate("query", bellQuery), async (req, res) => {
+  const { limit, before } = parsed<z.infer<typeof bellQuery>>(req, "query");
   // Anything due goes out first, so a scheduled announcement never waits for the admin to open the panel
   await sendDueAnnouncements().catch(() => undefined);
-  const deliveries = unwrap(
-    await db.from("announcement_deliveries").select("announcement_id, delivered_at, opened_at").eq("user_id", req.reader!.id).eq("channel", "in_app").order("delivered_at", { ascending: false }).limit(50),
-  );
+  let page = db.from("announcement_deliveries").select("announcement_id, delivered_at, opened_at").eq("user_id", req.reader!.id).eq("channel", "in_app");
+  if (before) page = page.lt("delivered_at", before);
+  const [deliveriesResult, unreadResult] = await Promise.all([
+    page.order("delivered_at", { ascending: false }).limit(limit + 1),
+    db.from("announcement_deliveries").select("announcement_id", { count: "exact", head: true }).eq("user_id", req.reader!.id).eq("channel", "in_app").is("opened_at", null),
+  ]);
+  const fetched = unwrap(deliveriesResult);
+  const more = fetched.length > limit;
+  const deliveries = fetched.slice(0, limit);
   const ids = deliveries.map((d) => d.announcement_id);
   const rows = ids.length ? unwrap(await db.from("announcements").select("*").in("id", ids)) : [];
   const byId = new Map(rows.map((a) => [a.id, a]));
@@ -95,7 +118,8 @@ contentRouter.get("/announcements", requireReader, async (req, res) => {
     if (!a) return [];
     return [{ id: a.public_id, title: text(a.title, a.title_bn), body: text(a.body, a.body_bn), topic: a.topic, link: a.link, at: d.delivered_at, read: d.opened_at !== null }];
   });
-  res.json({ announcements: items, unread: items.filter((i) => !i.read).length });
+  // unread counts the whole bell, not just this page; `next` is the `before` for the following page
+  res.json({ announcements: items, unread: unreadResult.count ?? 0, next: more ? (deliveries.at(-1)?.delivered_at ?? null) : null });
 });
 
 contentRouter.post("/announcements/read-all", requireReader, async (req, res) => {

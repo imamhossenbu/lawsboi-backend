@@ -8,7 +8,7 @@ import { db } from "../../../lib/supabase.js";
 import { requireTeam } from "../../../middleware/auth.js";
 import { validate } from "../../../middleware/validate.js";
 import { can, type Action } from "../team/permissions.js";
-import { announcementBody, articleBody, assistBody, pageBody, sectionBody, tidyBody, translateBody } from "./schemas.js";
+import { announcementBody, articleBody, assistBody, lawReadOptions, pageBody, sectionBody, tidyBody, translateBody } from "./schemas.js";
 import * as ai from "./service.js";
 
 // Team: AI help in the panel. Every call is recorded in ai_usage (who, what for, tokens, ok); nothing is saved
@@ -120,7 +120,17 @@ adminAiRouter.post("/laws/read", requireAny("laws.add"), pages, handle(async (re
   const total = files.reduce((n, f) => n + f.size, 0);
   if (total > MAX_BYTES) throw badRequest("The files come to more than 10 MB together.", { files: "size" });
   if (files.some((f) => f.mimetype === "application/pdf") && files.length > 1) throw badRequest("Send one PDF, or photos — not both.", { files: "mixed" });
-  res.json(await ai.readLaw(files, caller(req)));
+  const options = lawReadOptions.safeParse(req.body ?? {});
+  if (!options.success) throw badRequest("Check the options.", { options: "invalid" });
+  const { language, onlyStatute } = options.data;
+  res.json(await ai.readLaw(files, caller(req), { language: language === "auto" ? undefined : language, onlyStatute }));
+}));
+
+/** A SCOB judgment PDF read into the "Add judgment" form; nothing is saved until the editor creates the judgment. */
+adminAiRouter.post("/cases/read", requireAny("laws.cases"), pages, handle(async (req, res) => {
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  if (files.length !== 1 || files[0]!.mimetype !== "application/pdf") throw badRequest("Add the judgment as one PDF.", { files: "pdf" });
+  res.json(await ai.readCase(files[0]!, caller(req)));
 }));
 
 adminAiRouter.post("/laws/translate-section", requireAny("laws.translate"), validate("body", sectionBody), handle(async (req, res) => {

@@ -71,6 +71,8 @@ export function planOf(p: PlanRow, counts?: { subscribers: number; yearlySubscri
     features: featuresOf(p.features),
     active: p.active,
     isDefault: p.is_default,
+    // The pricing page's "Most popular" mark; one plan at most, chosen on the admin's Plans page
+    popular: p.popular,
     icon: p.icon,
     subscribers: counts?.subscribers ?? 0,
     yearlySubscribers: counts?.yearlySubscribers ?? 0,

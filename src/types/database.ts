@@ -535,14 +535,14 @@ isOneToOne: false
                   ]
                 },"plans": {
                   Row: {
-                    "active": boolean,"created_at": string,"description": string,"description_bn": string,"features": NonNullable<Json>,"icon": string,"id": string,"is_default": boolean,"name": string,"name_bn": string,"price_monthly": number,"price_yearly": number | null,"sort_order": number,"updated_at": string
+                    "active": boolean,"created_at": string,"description": string,"description_bn": string,"features": NonNullable<Json>,"icon": string,"id": string,"is_default": boolean,"name": string,"name_bn": string,"popular": boolean,"price_monthly": number,"price_yearly": number | null,"sort_order": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "active"?: boolean,"created_at"?: string,"description"?: string,"description_bn"?: string,"features"?: NonNullable<Json>,"icon"?: string,"id": string,"is_default"?: boolean,"name": string,"name_bn": string,"price_monthly"?: number,"price_yearly"?: number | null,"sort_order"?: number,"updated_at"?: string
+                    "active"?: boolean,"created_at"?: string,"description"?: string,"description_bn"?: string,"features"?: NonNullable<Json>,"icon"?: string,"id": string,"is_default"?: boolean,"name": string,"name_bn": string,"popular"?: boolean,"price_monthly"?: number,"price_yearly"?: number | null,"sort_order"?: number,"updated_at"?: string
                   }
                   Update: {
-                    "active"?: boolean,"created_at"?: string,"description"?: string,"description_bn"?: string,"features"?: NonNullable<Json>,"icon"?: string,"id"?: string,"is_default"?: boolean,"name"?: string,"name_bn"?: string,"price_monthly"?: number,"price_yearly"?: number | null,"sort_order"?: number,"updated_at"?: string
+                    "active"?: boolean,"created_at"?: string,"description"?: string,"description_bn"?: string,"features"?: NonNullable<Json>,"icon"?: string,"id"?: string,"is_default"?: boolean,"name"?: string,"name_bn"?: string,"popular"?: boolean,"price_monthly"?: number,"price_yearly"?: number | null,"sort_order"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     

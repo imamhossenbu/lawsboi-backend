@@ -7,6 +7,8 @@ import * as prompts from "./prompts.js";
 import {
   announcementReply,
   articleReply,
+  caseReadReply,
+  type CaseRead,
   lawReadReply,
   sectionsReply,
   stringsReply,
@@ -245,13 +247,13 @@ export interface Upload {
 }
 
 /** Reads a law from photos or a PDF into the shape the import page checks section by section. */
-export async function readLaw(files: Upload[], caller: Caller) {
+export async function readLaw(files: Upload[], caller: Caller, options: { language?: Lang; onlyStatute?: boolean } = {}) {
   const parts: AiPart[] = [
     ...files.map((f): AiPart => ({ type: f.mimetype === "application/pdf" ? "document" : "image", data: f.buffer.toString("base64"), mimeType: f.mimetype })),
     { type: "text", text: `Read these ${files.length} file(s) in order as consecutive pages of one law.` },
   ];
   const out: AiResult & { value: LawRead } = await tracked("admin.laws.read", caller, () =>
-    generateJson({ purpose: "admin.laws.read", system: prompts.lawReadInstruction(), input: parts, maxOutputTokens: 32_000, thinking: "low" }, lawReadReply),
+    generateJson({ purpose: "admin.laws.read", system: prompts.lawReadInstruction(options), input: parts, maxOutputTokens: 32_000, thinking: "low" }, lawReadReply),
   );
   const { law, parts: read } = out.value;
   if (!read.some((p) => p.sections.length)) throw badRequest("No sections could be read from these pages. Check they're a law and clearly photographed.", { ai: "unreadable" });
@@ -289,4 +291,83 @@ export async function translateSection(slug: string, n: string, to: Lang | undef
   const notes = Array.isArray(section.notes) ? (section.notes as unknown[]).map((x) => String(x)) : [];
   const done = await translateMany([section.title, ...blocks, ...notes], from, target, "legal", caller);
   return { title: done[0]!, b: done.slice(1, 1 + blocks.length), f: done.slice(1 + blocks.length), from, to: target };
+}
+
+/** Finds the catalogue's law for an act's name as a judgment writes it ("Code of Civil Procedure, 1908", "CrPC"). */
+async function lawSlugFor(act: string): Promise<string | null> {
+  const known: Record<string, string> = { cpc: "cpc-1908", crpc: "crpc-1898", "penal code": "penal-code-1860", constitution: "constitution-1972", "evidence act": "evidence-act-1872" };
+  const key = act.toLowerCase().replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  for (const [name, slug] of Object.entries(known)) if (key === name || key.startsWith(`${name} `) || key.includes(`the ${name}`)) return slug;
+  const year = key.match(/\b(1[89]\d\d|20\d\d)\b/)?.[1];
+  const words = key.replace(/\b(the|of|and|act|ordinance|\d+)\b/g, " ").trim().split(" ").filter((w) => w.length > 2);
+  if (!words.length) return null;
+  let q = db.from("laws").select("slug,title").ilike("title", `%${words.join("%")}%`).limit(5);
+  if (year) q = q.eq("year", Number(year));
+  const { data } = await q;
+  return data?.[0]?.slug ?? null;
+}
+
+const ROMAN: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100 };
+export const fromRoman = (r: string) => {
+  let total = 0;
+  const s = r.toLowerCase();
+  for (let i = 0; i < s.length; i++) {
+    const v = ROMAN[s[i]!] ?? 0;
+    const next = ROMAN[s[i + 1] ?? ""] ?? 0;
+    total += v < next ? -v : v;
+  }
+  return total;
+};
+
+/** A provision as the catalogue stores citations: an Order's rule is kind "order" with the Order's number and
+ * `rule` ("XXXIX rule 1" → n "39", rule 1); other numbers are kept as written. */
+export function provisionRef(kind: "section" | "article" | "order" | "rule", n: string): { kind: "section" | "article" | "order" | "rule"; n: string; rule: number | null } {
+  const m = n.trim().match(/^(?:o(?:rder)?\.?\s*)?([ivxlc]+|\d+)\s*(?:,\s*)?(?:r(?:ule)?\.?\s*(\d+))?$/i);
+  if ((kind === "order" || kind === "rule") && m) {
+    const order = /^\d+$/.test(m[1]!) ? m[1]! : String(fromRoman(m[1]!));
+    return { kind: "order", n: order, rule: m[2] ? Number(m[2]) : null };
+  }
+  return { kind, n: n.trim(), rule: null };
+}
+
+/** Reads a judgment PDF into the "Add judgment" form's fields; laws are matched to the catalogue where possible
+ * (`law: null` when no law matched, for the editor to pick). */
+export async function readCase(file: Upload, caller: Caller) {
+  const out: AiResult & { value: CaseRead } = await tracked("admin.cases.read", caller, () =>
+    generateJson(
+      {
+        purpose: "admin.cases.read",
+        system: prompts.caseReadInstruction(),
+        input: [{ type: "document", data: file.buffer.toString("base64"), mimeType: file.mimetype }, { type: "text", text: "Read this judgment." }],
+        maxOutputTokens: 32_000,
+        thinking: "low",
+      },
+      caseReadReply,
+    ),
+  );
+  const v = out.value;
+  if (!v.paragraphs.length && !v.citation) throw badRequest("No judgment could be read from this file.", { ai: "unreadable" });
+  const laws = await Promise.all(v.laws.map(async (l) => ({ act: l.act, law: await lawSlugFor(l.act), ...provisionRef(l.kind, l.n) })));
+  return {
+    case: {
+      title: v.title,
+      citation: v.citation,
+      caseNo: v.caseNo,
+      court: v.court,
+      date: /^\d{4}-\d{2}-\d{2}$/.test(v.date) ? v.date : null,
+      dateKnown: /^\d{4}-\d{2}-\d{2}$/.test(v.date),
+      judges: v.judges,
+      author: v.author || null,
+      type: v.type,
+      keywords: v.keywords,
+      parties: v.parties.appellant || v.parties.respondent ? v.parties : null,
+      advocates: v.advocates,
+      excerpt: v.excerpt,
+      citationsReferred: v.citationsReferred,
+      language: v.language,
+      paragraphs: v.paragraphs,
+    },
+    laws,
+    model: out.model,
+  };
 }

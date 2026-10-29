@@ -18,7 +18,7 @@ AdminUser = { id: "USR-10047", name: {en,bn}, email, plan, cycle, role: "reader"
 
 | Method | Path | Auth | Body / query | Returns |
 | --- | --- | --- | --- | --- |
-| GET | `/billing/plans` | none | | `{ plans: Plan[] (active, without subscriber counts), matrix: [{ key, free, researcher, professional }] }` — matrix cells are `true/false`, `"limited"`, `"unlimited"` or a number, one row per pricing-page feature in order |
+| GET | `/billing/plans` | none | | `{ plans: (Plan & { excluded: [{ key, label }] })[] (active, without subscriber counts), matrix: [{ key, label: {en,bn}, free, researcher, professional }] }` — `excluded` lists the matrix rows that are `false` for the plan; `Plan.popular` is the "Most popular" mark (one plan at most); matrix cells are `true/false`, `"limited"`, `"unlimited"` or a number, one row per pricing-page feature in order |
 | GET | `/billing/accounts` | none | | `{ accounts: Wallet[] }` (enabled only) |
 | POST | `/billing/checkout` | reader | `{ plan, cycle, method, trxId }` | 201 `{ payment: Payment }` (status `awaiting`). 400 `details.trxId: "shape"` (bKash 10 chars, Nagad 8), `details.plan/cycle/method: "unavailable"`; 409 `details.trxId: "duplicate"` or `"pending"` (one awaiting payment at a time) |
 | GET | `/billing/subscription` | reader | | `{ plan, cycle, subscription: Subscription|null, payments: Payment[] }` newest first |
@@ -41,7 +41,8 @@ AdminUser = { id: "USR-10047", name: {en,bn}, email, plan, cycle, role: "reader"
 | GET | `/admin/billing/payments/export` | payments.export | same filters | CSV download (audits `payment.export`) |
 | GET | `/admin/billing/payments/:id` | payments.view | | `{ payment: Payment & { user } }` |
 | POST | `/admin/billing/payments/:id/verify` | payments.verify | | `{ payment }`. Starts the subscription (or extends one on the same plan+cycle from its renewal date), sets the reader's plan. 409 if already reviewed |
-| POST | `/admin/billing/payments/:id/reject` | payments.reject | `{ reason: "notFound"|"amount"|"duplicate" }` | `{ payment }` |
+| POST | `/admin/billing/payments/:id/reject` | payments.reject | `{ reason: "notFound"|"amount"|"duplicate" }` | `{ payment }`. Verifying and rejecting both email the reader in their language (billing email can't be turned off) |
+| PUT | `/admin/billing/plans/:id/popular` | plans.edit | `{ popular }` | `{ plan }` — marking one plan takes the mark off the others; a deactivated plan loses it |
 | POST | `/admin/billing/payments/:id/refund` | payments.refund | | `{ payment }`. Cancels its subscription; a reader with no other active one goes back to the default plan. 409 unless verified |
 
 Renewals: `renews` steps a calendar month or year from verification (31 Jan → 28 Feb). Nothing charges automatically — bKash/Nagad are manual — so a lapsed subscription is a product decision for later (a cron that marks `past_due` after `renews` passes).

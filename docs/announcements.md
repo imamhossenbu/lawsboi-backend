@@ -20,7 +20,7 @@ or the banner clicked (email opens aren't tracked).
 
 | Method | Path | Auth | Response |
 | --- | --- | --- | --- |
-| GET | `/content/announcements` | reader | `{ announcements: { id, title, body, topic, link, at, read }[], unread }` newest first (the bell) |
+| GET | `/content/announcements` | reader | `?limit=` (default 30, up to 100) and `?before=` (the last item's `at`) page it → `{ announcements: { id, title, body, topic, link, at, read }[], unread, next }` newest first (the bell); `unread` counts the whole bell, `next` is the `before` for the next page or null |
 | POST | `/content/announcements/:id/read` | reader | 204 |
 | POST | `/content/announcements/read-all` | reader | 204 |
 | GET | `/content/banner` | reader | `{ banner: { id, title, body, link, until } \| null }` — newest live banner for the reader's plan; counts as reached |

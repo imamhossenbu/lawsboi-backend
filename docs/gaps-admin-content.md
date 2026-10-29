@@ -31,3 +31,11 @@ All five are in the API now:
 4. `scope` filter on `GET /admin/assistant/questions`, `latestId` on each top question, and
    `GET /admin/assistant/questions/:id` to open one.
 5. `GET /admin/users/by-plan` for any team member.
+6. **Reading a SCOB judgment PDF** (`POST /admin/ai/cases/read`, laws.cases) — the "Add judgment" form had a
+   "Fill from a PDF" box that only ever filled sample text; it's gone until such a route exists.
+7. **`/admin/ai/laws/read` options** — the import page also sends `language` (`en|bn`, when not "auto") and
+   `onlyStatute` (`true|false`) with the files; the route ignores both today.
+
+6. `POST /admin/ai/cases/read` (laws.cases): one judgment PDF in, the "Add judgment" form's fields out, with cited
+   provisions matched to the catalogue (see docs/ai.md).
+7. `/admin/ai/laws/read` reads `language` and `onlyStatute` from the multipart fields now.

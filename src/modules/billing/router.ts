@@ -14,7 +14,12 @@ export const billingRouter = Router();
 /** The pricing page: active plans with prices, features and the comparison matrix. Public. */
 billingRouter.get("/plans", async (_req, res) => {
   const [plans, matrix] = await Promise.all([listPlans(true), featureMatrix()]);
-  res.json({ plans: plans.map(({ subscribers, yearlySubscribers, ...p }) => p), matrix });
+  // What each plan leaves out: the matrix rows that are false for it, for the plan cards' "not included" lines
+  const rows = matrix as { key: string; label?: { en: string; bn: string }; [plan: string]: unknown }[];
+  res.json({
+    plans: plans.map(({ subscribers: _s, yearlySubscribers: _y, ...p }) => ({ ...p, excluded: rows.filter((r) => r[p.id] === false).map((r) => ({ key: r.key, label: r.label ?? null })) })),
+    matrix,
+  });
 });
 
 /** The wallets offered at checkout. Public. */
