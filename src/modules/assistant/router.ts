@@ -6,7 +6,7 @@ import { parsed, validate } from "../../middleware/validate.js";
 import { notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { fetchAll } from "../catalogue/shared.js";
-import { retrieveForAnswer, withWriting, writeAnswer, type Turn } from "./answer.js";
+import { retrieveForAnswer, retrieveForFollowUp, withWriting, writeAnswer, type Turn } from "./answer.js";
 import { assertAllowance, usage } from "./service.js";
 
 // Readers: ask the assistant (counted against the plan's monthly allowance), see the month's usage and their history.
@@ -55,13 +55,11 @@ assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (
   const earlier = b.conversationId ? await earlierTurns(me.id, b.conversationId) : [];
   const before = await usage(me.id, me.plan_id);
   assertAllowance(before);
-  let found = await retrieveForAnswer(b.question, b.scope, b.lang, { userId: me.id });
-  // A short follow-up ("and for bail?") finds little on its own words: search with the previous question too
+  // A follow-up ("and in a dwelling house?") is searched in the light of the chat's previous question
   const last = earlier.at(-1);
-  if (last && found.answer.laws.length + found.answer.cases.length < 2) {
-    const joined = await retrieveForAnswer(`${last.question} ${b.question}`, b.scope, b.lang, { userId: me.id });
-    found = { answer: { ...joined.answer, query: b.question }, refs: joined.refs };
-  }
+  const found = last
+    ? await retrieveForFollowUp(b.question, last.question, b.scope, b.lang, { userId: me.id })
+    : await retrieveForAnswer(b.question, b.scope, b.lang, { userId: me.id });
   const written = await writeAnswer(b.question, b.lang, found, { caller: { userId: me.id }, earlier });
   const result = withWriting(found.answer, written);
   const row = unwrap(

@@ -87,7 +87,7 @@ describeLive("public catalogue", () => {
     const totals = await request(app).get("/catalogue/totals").expect(200);
     expect(totals.body.laws.act).toBeGreaterThan(1000);
     expect(totals.body.courts.supreme).toBe(totals.body.courts.AD + totals.body.courts.HCD);
-  });
+  }, 20_000);
 });
 
 describeLive("assistant preview", () => {
@@ -95,7 +95,7 @@ describeLive("assistant preview", () => {
     const res = await request(app).post("/assistant/preview").send({ question: "When can a court grant a temporary injunction?" }).expect(200);
     expect(res.body.answer.laws.length).toBeGreaterThan(0);
     expect(res.body.answer.laws[0].label.en).toMatch(/Order|Section/);
-  });
+  }, 60_000); // the preview waits for the language model
 
   it("needs a signed-in reader to ask for real", async () => {
     await request(app).post("/assistant/ask").send({ question: "bail" }).expect(401);

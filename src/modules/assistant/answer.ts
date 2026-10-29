@@ -105,6 +105,25 @@ export async function retrieveForAnswer(question: string, scope: Scope, lang: La
   }
 }
 
+/** A follow-up ("and in a dwelling house?") means little on its own words, which often match something unrelated.
+ * The model turns it into search terms with the earlier question as context, and those hits come first, taking
+ * turns with what the follow-up's own words found. Without a model, the two questions are searched together. */
+export async function retrieveForFollowUp(question: string, previous: string, scope: Scope, lang: Lang, caller: Caller): Promise<Retrieved> {
+  const own = await retrieveForAnswer(question, scope, lang, caller);
+  try {
+    const terms = aiConfigured() ? await searchTerms(`Earlier question: ${previous}\nFollow-up question: ${question}`, caller) : `${previous} ${question}`;
+    if (!terms) return own;
+    const context = await retrieve(terms, scope, { anyWords: !aiConfigured() });
+    if (hitCount(context) === 0) return own;
+    const [c, o] = [split(context), split(own)];
+    const laws = interleave(c.laws, o.laws, 5);
+    const cases = interleave(c.cases, o.cases, 3);
+    return { answer: { query: question, scope, laws: laws.hits, cases: cases.hits }, refs: [...laws.refs, ...cases.refs] };
+  } catch {
+    return own;
+  }
+}
+
 export interface Grounding {
   hit: SourceHit;
   text: string;
