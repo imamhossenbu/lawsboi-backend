@@ -155,8 +155,10 @@ adminAssistantRouter.get("/stats", async (_req, res) => {
   };
 
   const coverage = { both: 0, laws: 0, cases: 0, none: 0 };
+  let bangla = 0;
   let banglaNoCases = 0;
   let withCases = 0;
+  let withLaws = 0;
   let lastMonthToDate = 0;
   const readers = new Map<string, { user: NonNullable<Row["profiles"]>; used: number; last: string }>();
   const top = new Map<string, { question: string; lang: string; count: number; latestId: string }>();
@@ -178,6 +180,8 @@ adminAssistantRouter.get("/stats", async (_req, res) => {
     const cases = (r.cases?.length ?? 0) > 0;
     coverage[laws && cases ? "both" : laws ? "laws" : cases ? "cases" : "none"]++;
     if (cases) withCases++;
+    if (laws) withLaws++;
+    if (r.lang === "bn") bangla++;
     if (r.lang === "bn" && !cases) banglaNoCases++;
     if (r.user_id && r.profiles) {
       const seen = readers.get(r.user_id) ?? { user: r.profiles, used: 0, last: r.created_at };
@@ -215,6 +219,8 @@ adminAssistantRouter.get("/stats", async (_req, res) => {
       paidReaders: [...readers.values()].filter((x) => x.user.plan_id !== "free").length,
       coverage,
       withCases,
+      withLaws,
+      bangla,
       banglaNoCases,
     },
     lastMonthToDate,

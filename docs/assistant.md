@@ -43,7 +43,7 @@ unlimited).
 | --- | --- | --- |
 | `GET /questions` | `q`, `plan`, `lang`, `coverage=both\|laws\|cases\|none`, `flagged=true\|false`, `month=YYYY-MM`, `user=USR-…`, `scope=all\|laws\|cases`, `page`, `perPage` | `{ questions: [{ id, question, lang, scope, coverage, laws, cases, text, citations, model, reason, flagged, at, user: { id, name: Text, email, plan } }], total, … }` |
 | `GET /questions/:id` | | `{ question }` — one question with its whole answer |
-| `GET /stats` | | `{ months: [{ month, total, byPlan }] (12), weeks: [{ start, byPlan }] (8, Monday start), thisMonth: { month, questions, readers, paidReaders, coverage: { both, laws, cases, none }, withCases, banglaNoCases }, lastMonthToDate, topQuestions: [{ question, lang, count, latestId }], atLimit: [{ user, used, last }], limits }` |
+| `GET /stats` | | `{ months: [{ month, total, byPlan }] (12), weeks: [{ start, byPlan }] (8, Monday start), thisMonth: { month, questions, readers, paidReaders, coverage: { both, laws, cases, none }, withCases, withLaws, bangla, banglaNoCases }, lastMonthToDate, topQuestions: [{ question, lang, count, latestId }], atLimit: [{ user, used, last }], limits }` |
 | `GET /limits` | | `{ limits }` |
 | `PUT /limits` | `{ free, researcher, professional }` (numbers or null) | `{ limits }` + audit `assistant.limits` |
 | `POST /questions/:id/flag` | `{ flagged }` | `{ question }` + audit `assistant.flag` / `assistant.unflag` |
