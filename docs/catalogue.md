@@ -49,7 +49,8 @@ reader site prefixes `/bn` itself.
 
 | Route | Permission | Body | Returns |
 | --- | --- | --- | --- |
-| `GET /laws` | laws.view | `q`, `status=all\|published\|draft`, `type`, `subject`, `language`, `sort=updated\|az\|newest\|popular`, `page`, `perPage` | `{ laws: (LawRecord & { translated })[], total, … }` |
+| `GET /stats` | laws.view | | `{ laws, bangla, drafts, sections, translated, cases, casesDraft }` — the whole catalogue |
+| `GET /laws` | laws.view | `q`, `status=all\|published\|draft`, `type`, `subject`, `language`, `translation=none\|partial\|full`, `sort=updated\|az\|newest\|popular`, `page`, `perPage` | `{ laws: (LawRecord & { translated })[], total, … }`; `translation` filters on the share of sections translated (kept on `laws.translation_state` by a trigger) |
 | `GET /laws/:slug` | laws.view | | the public detail plus `text: ActText` and `history` |
 | `GET /laws/:slug/history` | laws.view | | `{ history: [{ at, kind, n, law, by }] }` |
 | `POST /laws` | laws.add | `{ slug?, title, titleBn?, actNo, actNoBn?, year, type, status, subject, description, descriptionBn?, language, unit, longTitle, preamble, date, bdlawsId?, parts: [{ id, title, titleTr?, range, banner?, sub?, sections: [{ n, title, body, notes }] }], translations: { [n]: { title, b, f? } }, published }` | `201` the detail; drafts unless `published` |

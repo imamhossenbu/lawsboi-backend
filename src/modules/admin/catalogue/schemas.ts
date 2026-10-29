@@ -123,6 +123,8 @@ export const adminLawsQuery = z.object({
   type: z.enum(LAW_TYPES).optional(),
   subject: z.enum(SUBJECT_KEYS).optional(),
   language: lang.optional(),
+  // Share of sections translated: none, some, all
+  translation: z.enum(["none", "partial", "full"]).optional(),
   sort: z.enum(["updated", "az", "newest", "popular"]).default("updated"),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(200).default(25),

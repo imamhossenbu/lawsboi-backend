@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requirePermission, requireTeam } from "../../../middleware/auth.js";
 import { parsed, validate } from "../../../middleware/validate.js";
-import { unwrap } from "../../../lib/errors.js";
+import { notFound, unwrap } from "../../../lib/errors.js";
 import { db } from "../../../lib/supabase.js";
 import { logAudit } from "../../audit/service.js";
 import { fetchAll } from "../../catalogue/shared.js";
@@ -31,6 +31,7 @@ const listQuery = z.object({
   /** "2026-10": Bangladesh-time month. */
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   user: z.string().regex(/^USR-\d+$/).optional(),
+  scope: z.enum(["all", "laws", "cases"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -72,6 +73,7 @@ adminAssistantRouter.get("/questions", validate("query", listQuery), async (req,
   if (q.user) query = query.eq("profiles.public_id", q.user);
   if (q.lang) query = query.eq("lang", q.lang);
   if (q.flagged) query = query.eq("flagged", q.flagged === "true");
+  if (q.scope) query = query.eq("scope", q.scope);
   if (q.month) {
     const { start, end } = monthRange(q.month);
     query = query.gte("created_at", start).lt("created_at", end);
@@ -92,44 +94,130 @@ adminAssistantRouter.get("/questions", validate("query", listQuery), async (req,
   res.json({ questions: (data ?? []).map(questionOf), total: count ?? 0, page: q.page, perPage: q.perPage });
 });
 
-/** Questions per month for the last twelve months, by plan, plus this month's readers and the top questions. */
+/** One question with its whole answer (the "Most asked" tab opens one through its latestId). */
+adminAssistantRouter.get("/questions/:id", validate("params", z.object({ id: z.uuid() })), async (req, res) => {
+  const { id } = parsed<{ id: string }>(req, "params");
+  const { data, error } = await db.from("assistant_questions").select(QUESTION.replace("profiles!inner", "profiles")).eq("id", id).maybeSingle();
+  if (error) throw new Error(`Database: ${error.message}`);
+  if (!data) throw notFound("That question");
+  res.json({ question: questionOf(data as never) });
+});
+
+/** Everything the Assistant page's figures need, in one call: twelve months by plan, the last eight weeks, this
+ * month's coverage and readers, the same days of last month, the most asked questions and who hit the limit.
+ * Months and weeks run on Bangladesh time; weeks start on Monday. */
 adminAssistantRouter.get("/stats", async (_req, res) => {
+  const DHAKA = 6 * 3_600_000;
   const start = monthStart();
   start.setUTCMonth(start.getUTCMonth() - 11);
-  const rows = await fetchAll<{ created_at: string; question: string; lang: string; user_id: string | null; profiles: { plan_id: string } | null }>((a, b) =>
-    db.from("assistant_questions").select("created_at,question,lang,user_id,profiles(plan_id)").gte("created_at", start.toISOString()).order("created_at").range(a, b),
+  type Row = {
+    id: string;
+    created_at: string;
+    question: string;
+    lang: string;
+    user_id: string | null;
+    laws: unknown[] | null;
+    cases: unknown[] | null;
+    profiles: { public_id: string; name: string; name_bn: string | null; email: string; plan_id: string } | null;
+  };
+  const rows = await fetchAll<Row>((a, b) =>
+    db
+      .from("assistant_questions")
+      .select("id,created_at,question,lang,user_id,laws:answer->laws,cases:answer->cases,profiles(public_id,name,name_bn,email,plan_id)")
+      .gte("created_at", start.toISOString())
+      .order("created_at")
+      .range(a, b) as never,
   );
-  const monthOf = (iso: string) => new Date(Date.parse(iso) + 6 * 3_600_000).toISOString().slice(0, 7);
-  const months = new Map<string, { month: string; total: number; byPlan: Record<string, number> }>();
-  const thisMonth = monthOf(new Date().toISOString());
+  const now = new Date();
+  const local = (iso: string | Date) => new Date((typeof iso === "string" ? Date.parse(iso) : iso.getTime()) + DHAKA);
+  const monthOf = (iso: string) => local(iso).toISOString().slice(0, 7);
+  const thisMonth = monthOf(now.toISOString());
   const [y0, m0] = thisMonth.split("-").map(Number) as [number, number];
+  const months = new Map<string, { month: string; total: number; byPlan: Record<string, number> }>();
   for (let i = 11; i >= 0; i--) {
     const index = y0 * 12 + (m0 - 1) - i;
     const key = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
     months.set(key, { month: key, total: 0, byPlan: { free: 0, researcher: 0, professional: 0 } });
   }
-  const readers = new Set<string>();
-  const top = new Map<string, { question: string; lang: string; count: number }>();
+  const lastMonth = [...months.keys()].at(-2)!;
+  // "The same days of last month": up to this moment's day and time, a month back
+  const nowLocal = local(now);
+  const sameMomentLastMonth = Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth() - 1, nowLocal.getUTCDate(), nowLocal.getUTCHours(), nowLocal.getUTCMinutes()) - DHAKA;
+
+  // Eight Monday-start weeks, the current one last
+  const monday = new Date(Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate() - ((nowLocal.getUTCDay() + 6) % 7)) - DHAKA);
+  const weeks = Array.from({ length: 8 }, (_, i) => ({ start: new Date(monday.getTime() - (7 - i) * 7 * 86_400_000).toISOString(), byPlan: { free: 0, researcher: 0, professional: 0 } as Record<string, number> }));
+  const weekOf = (iso: string) => {
+    const t = Date.parse(iso);
+    for (let i = weeks.length - 1; i >= 0; i--) if (t >= Date.parse(weeks[i]!.start)) return weeks[i];
+    return undefined;
+  };
+
+  const coverage = { both: 0, laws: 0, cases: 0, none: 0 };
+  let banglaNoCases = 0;
+  let withCases = 0;
+  let lastMonthToDate = 0;
+  const readers = new Map<string, { user: NonNullable<Row["profiles"]>; used: number; last: string }>();
+  const top = new Map<string, { question: string; lang: string; count: number; latestId: string }>();
+
   for (const r of rows) {
-    const m = months.get(monthOf(r.created_at));
+    const month = monthOf(r.created_at);
     const plan = r.profiles?.plan_id ?? "free";
+    const m = months.get(month);
     if (m) {
       m.total++;
       m.byPlan[plan] = (m.byPlan[plan] ?? 0) + 1;
     }
-    if (monthOf(r.created_at) === thisMonth) {
-      if (r.user_id) readers.add(r.user_id);
-      const key = r.question.trim().toLowerCase();
-      const t = top.get(key) ?? { question: r.question, lang: r.lang, count: 0 };
-      t.count++;
-      top.set(key, t);
+    const w = weekOf(r.created_at);
+    if (w) w.byPlan[plan] = (w.byPlan[plan] ?? 0) + 1;
+    if (month === lastMonth && Date.parse(r.created_at) <= sameMomentLastMonth) lastMonthToDate++;
+    if (month !== thisMonth) continue;
+
+    const laws = (r.laws?.length ?? 0) > 0;
+    const cases = (r.cases?.length ?? 0) > 0;
+    coverage[laws && cases ? "both" : laws ? "laws" : cases ? "cases" : "none"]++;
+    if (cases) withCases++;
+    if (r.lang === "bn" && !cases) banglaNoCases++;
+    if (r.user_id && r.profiles) {
+      const seen = readers.get(r.user_id) ?? { user: r.profiles, used: 0, last: r.created_at };
+      seen.used++;
+      seen.last = r.created_at;
+      readers.set(r.user_id, seen);
     }
+    const key = r.question.trim().toLowerCase();
+    const t = top.get(key) ?? { question: r.question, lang: r.lang, count: 0, latestId: r.id };
+    t.count++;
+    // Rows come oldest first, so the last one seen is the latest
+    t.latestId = r.id;
+    top.set(key, t);
   }
+
+  const allLimits = await limits();
+  const limitOf = (plan: string) => (allLimits[plan] === undefined ? (DEFAULT_LIMITS[plan] ?? null) : allLimits[plan]!);
+  const atLimit = [...readers.values()]
+    .filter((x) => {
+      const limit = limitOf(x.user.plan_id);
+      return limit !== null && x.used >= limit;
+    })
+    .sort((a, b) => b.last.localeCompare(a.last))
+    .map((x) => ({ user: { id: x.user.public_id, name: { en: x.user.name, bn: x.user.name_bn ?? x.user.name }, email: x.user.email, plan: x.user.plan_id }, used: x.used, last: x.last }));
+
   res.json({
     months: [...months.values()],
-    thisMonth: { month: thisMonth, questions: months.get(thisMonth)?.total ?? 0, readers: readers.size },
+    weeks,
+    thisMonth: {
+      month: thisMonth,
+      questions: months.get(thisMonth)?.total ?? 0,
+      readers: readers.size,
+      paidReaders: [...readers.values()].filter((x) => x.user.plan_id !== "free").length,
+      coverage,
+      withCases,
+      banglaNoCases,
+    },
+    lastMonthToDate,
     topQuestions: [...top.values()].sort((a, b) => b.count - a.count).slice(0, 10),
-    limits: await limits(),
+    atLimit,
+    limits: allLimits,
   });
 });
 

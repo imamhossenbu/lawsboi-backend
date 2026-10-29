@@ -469,14 +469,14 @@ isOneToOne: false
                   ]
                 },"laws": {
                   Row: {
-                    "act_no": string,"act_no_bn": string | null,"bdlaws_id": number | null,"created_at": string,"curated": boolean,"description": string,"description_bn": string | null,"enacted_on": string,"language": Database["public"]['Enums']["lang"],"long_title": string,"preamble": string,"published": boolean,"search": unknown,"section_count": number,"slug": string,"sort_title": string | null,"status": string,"subject": string,"title": string,"title_bn": string | null,"type": string,"unit": string,"updated_at": string,"views": number,"year": number
+                    "act_no": string,"act_no_bn": string | null,"bdlaws_id": number | null,"created_at": string,"curated": boolean,"description": string,"description_bn": string | null,"enacted_on": string,"language": Database["public"]['Enums']["lang"],"long_title": string,"preamble": string,"published": boolean,"search": unknown,"section_count": number,"sections_total": number,"sections_translated": number,"slug": string,"sort_title": string | null,"status": string,"subject": string,"title": string,"title_bn": string | null,"translation_state": string,"type": string,"unit": string,"updated_at": string,"views": number,"year": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug": string,"sort_title"?: never,"status"?: string,"subject"?: string,"title": string,"title_bn"?: string | null,"type": string,"unit"?: string,"updated_at"?: string,"views"?: number,"year": number
+                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"sections_total"?: number,"sections_translated"?: number,"slug": string,"sort_title"?: never,"status"?: string,"subject"?: string,"title": string,"title_bn"?: string | null,"translation_state"?: string,"type": string,"unit"?: string,"updated_at"?: string,"views"?: number,"year": number
                   }
                   Update: {
-                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug"?: string,"sort_title"?: never,"status"?: string,"subject"?: string,"title"?: string,"title_bn"?: string | null,"type"?: string,"unit"?: string,"updated_at"?: string,"views"?: number,"year"?: number
+                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"sections_total"?: number,"sections_translated"?: number,"slug"?: string,"sort_title"?: never,"status"?: string,"subject"?: string,"title"?: string,"title_bn"?: string | null,"translation_state"?: string,"type"?: string,"unit"?: string,"updated_at"?: string,"views"?: number,"year"?: number
                   }
                   Relationships: [
                     
@@ -826,6 +826,11 @@ isOneToOne: false
 "blocks_text":
 { Args: { "blocks": Json }; Returns: string
                            },
+"catalogue_admin_stats":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "bangla": number,"cases": number,"cases_draft": number,"drafts": number,"laws": number,"sections": number,"translated": number
+            }[]
+                           },
 "dashboard_series":
 { Args: { "months_back"?: number }; Returns: {
               "active_users": number,"month": string,"new_subscriptions": number,"refunds": number,"revenue": number,"revenue_by_plan": Json,"total_users": number
@@ -860,6 +865,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "plan_id": string,"subscribers": number,"yearly_subscribers": number
             }[]
+                           },
+"refresh_law_translation":
+{ Args: { "target": string }; Returns: undefined
                            },
 "search_judgments":
 { Args: { "max_rows"?: number,"tsq": unknown }; Returns: {

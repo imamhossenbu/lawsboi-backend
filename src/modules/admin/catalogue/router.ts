@@ -39,6 +39,13 @@ const sectionParam = slugParam.extend({ n: z.string().trim().min(1).max(20) });
 
 /* ------------------------------------------------------------------- laws */
 
+/** The Laws page's cards: the whole catalogue, not just a page of it. */
+adminCatalogueRouter.get("/stats", async (_req, res) => {
+  const [row] = unwrap(await db.rpc("catalogue_admin_stats"));
+  const n = (v: unknown) => Number(v ?? 0);
+  res.json({ laws: n(row?.laws), bangla: n(row?.bangla), drafts: n(row?.drafts), sections: n(row?.sections), translated: n(row?.translated), cases: n(row?.cases), casesDraft: n(row?.cases_draft) });
+});
+
 adminCatalogueRouter.get("/laws", validate("query", adminLawsQuery), async (req, res) => {
   const q = parsed<z.infer<typeof adminLawsQuery>>(req, "query");
   let query = db.from("laws").select("*", { count: "exact" });
@@ -47,6 +54,7 @@ adminCatalogueRouter.get("/laws", validate("query", adminLawsQuery), async (req,
   if (q.type) query = query.eq("type", q.type);
   if (q.subject) query = query.eq("subject", q.subject);
   if (q.language) query = query.eq("language", q.language);
+  if (q.translation) query = query.eq("translation_state", q.translation);
   if (q.q) {
     const like = `%${q.q.replace(/[%_,()]/g, " ").trim()}%`;
     query = query.or(`title.ilike.${like},title_bn.ilike.${like},slug.ilike.${like},act_no.ilike.${like}`);

@@ -2,7 +2,8 @@
 
 | Method | Path | Permission | Body / query | Returns |
 | --- | --- | --- | --- | --- |
-| GET | `/admin/users` | users.view | `q` (name, email, id), `plan`, `active: "true"|"false"`, `page`, `perPage` | `{ users: AdminUser[], page, perPage, total }` |
+| GET | `/admin/users/by-plan` | any team member | | `{ plans: { free, researcher, professional }, total }` — active readers per plan, for the flags and announcements pages |
+| GET | `/admin/users` | users.view | `q` (name, email, id), `plan`, `active: "true"|"false"`, `joinedWithinDays`, `page`, `perPage` | `{ users: AdminUser[], page, perPage, total }` |
 | GET | `/admin/users/stats` | users.view | | `{ total: {current, previous}, active, new, inactive }` — active = seen in the last 30 days; previous = end of last month |
 | GET | `/admin/users/export` | users.export | same filters | CSV (audits `user.export`) |
 | POST | `/admin/users` | users.add | `{ name, nameBn?, email, plan?, cycle?, lang? }` | 201 `{ user }`; 409 `details.email: "taken"`. No password is set: the reader uses "Forgot password" |

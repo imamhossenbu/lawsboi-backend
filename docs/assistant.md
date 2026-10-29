@@ -1,8 +1,14 @@
 # Assistant API
 
-No language model yet: an answer is the provisions and judgments that best match the question, quoted, found by
-Postgres full-text search over the whole catalogue (`search_provisions`, `search_judgments`). Questions readers
-ask are logged and counted against their plan's monthly allowance; months run on Bangladesh time.
+An answer is the provisions and judgments that best match the question (Postgres full-text search over the whole
+catalogue: `search_provisions`, `search_judgments`) plus a text the language model writes from them and only from
+them, citing them as [1], [2]… (see [ai.md](ai.md)). When the first search finds little, or the question is in
+Bangla, the model turns the question into English search terms and the search runs again (most of the catalogue,
+and every SCOB judgment, is English). The text is in the question's language: Bangla script means Bangla.
+
+If the model is missing, slow or refuses, the reader still gets the sources, with `text: null` and a `reason`;
+the question still counts. Questions readers ask are logged with the whole answer and counted against their plan's
+monthly allowance; months run on Bangladesh time.
 
 ## Readers
 
@@ -14,7 +20,12 @@ ask are logged and counted against their plan's monthly allowance; months run on
 | `GET /assistant/history` | reader | `page`, `perPage` | `{ questions: [{ id, question, lang, scope, answer, at }], total, … }` |
 
 ```ts
-Answer = { query, scope, laws: SourceHit[], cases: SourceHit[] }
+Answer = { query, scope, laws: SourceHit[], cases: SourceHit[],
+  text: string | null /* plain paragraphs, "- " list lines allowed, [n] markers in Latin digits */,
+  citations: { index /* the n in [n] */, kind, id, title: Text, label: Text, href }[] /* only the sources the text cites */,
+  lang: "en" | "bn", model: string | null,
+  reason?: "no_sources" | "not_configured" | "unavailable" | "invalid" | "blocked" }
+// [n] numbers the sources in order: laws first, then cases (citations[].index points into that list)
 SourceHit = { kind: "law"|"case", id, title: Text, label: Text /* "Section 151" / "Order XXXIX, Rule 1" / "19 SCOB [2024] AD 1" */,
   context: Text /* the law's title / the court */, snippet: Text, href /* /bd/laws/cpc-1908/section-151, /bd/cases/<slug> */ }
 ```
@@ -26,8 +37,9 @@ unlimited).
 
 | Route | Query / body | Returns |
 | --- | --- | --- |
-| `GET /questions` | `q`, `plan`, `lang`, `coverage=both\|laws\|cases\|none`, `flagged=true\|false`, `month=YYYY-MM`, `user=USR-…`, `page`, `perPage` | `{ questions: [{ id, question, lang, scope, coverage, laws, cases, flagged, at, user: { id, name: Text, email, plan } }], total, … }` |
-| `GET /stats` | | `{ months: [{ month, total, byPlan }] (12), thisMonth: { month, questions, readers }, topQuestions: [{ question, lang, count }], limits }` |
+| `GET /questions` | `q`, `plan`, `lang`, `coverage=both\|laws\|cases\|none`, `flagged=true\|false`, `month=YYYY-MM`, `user=USR-…`, `scope=all\|laws\|cases`, `page`, `perPage` | `{ questions: [{ id, question, lang, scope, coverage, laws, cases, text, citations, model, reason, flagged, at, user: { id, name: Text, email, plan } }], total, … }` |
+| `GET /questions/:id` | | `{ question }` — one question with its whole answer |
+| `GET /stats` | | `{ months: [{ month, total, byPlan }] (12), weeks: [{ start, byPlan }] (8, Monday start), thisMonth: { month, questions, readers, paidReaders, coverage: { both, laws, cases, none }, withCases, banglaNoCases }, lastMonthToDate, topQuestions: [{ question, lang, count, latestId }], atLimit: [{ user, used, last }], limits }` |
 | `GET /limits` | | `{ limits }` |
 | `PUT /limits` | `{ free, researcher, professional }` (numbers or null) | `{ limits }` + audit `assistant.limits` |
 | `POST /questions/:id/flag` | `{ flagged }` | `{ question }` + audit `assistant.flag` / `assistant.unflag` |

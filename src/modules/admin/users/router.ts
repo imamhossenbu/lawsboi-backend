@@ -13,6 +13,16 @@ import { csvHeaders, toCsv } from "../billing/csv.js";
 // Readers, as the admin panel's Users page and the support screens see them.
 
 export const usersRouter = Router();
+
+/** Active readers on each plan, for any team member: the flags and announcements pages show "{n} readers" per plan
+ * without needing users.view. Registered before the router's users.view guard on purpose. */
+usersRouter.get("/by-plan", requireTeam, async (_req, res) => {
+  const rows = unwrap(await db.rpc("plan_subscriber_counts"));
+  const plans: Record<string, number> = { free: 0, researcher: 0, professional: 0 };
+  for (const r of rows) plans[r.plan_id] = Number(r.subscribers);
+  res.json({ plans, total: Object.values(plans).reduce((a, b) => a + b, 0) });
+});
+
 usersRouter.use(requireTeam, requirePermission("users.view"));
 
 type ProfileRow = Tables<"profiles">;
