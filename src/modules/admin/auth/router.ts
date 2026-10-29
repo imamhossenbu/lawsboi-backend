@@ -14,7 +14,8 @@ import { memberOf } from "../team/service.js";
 
 export const adminAuthRouter = Router();
 
-const strict = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
+// Generous enough for a team sharing an office address, slow enough to make guessing pointless
+const strict = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false });
 
 adminAuthRouter.post("/login", strict, validate("body", loginSchema), async (req, res) => {
   const { data, error } = await authClient().auth.signInWithPassword(req.body);

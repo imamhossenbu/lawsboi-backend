@@ -22,8 +22,8 @@ authRouter.post("/signup", validate("body", signupSchema), async (req, res) => {
 authRouter.post("/verify", validate("body", verifySchema), async (req, res) => {
   const { email, code, purpose } = req.body;
   if (purpose === "signup") await auth.verifySignup(email, code);
-  // A reset code is checked together with the new password, in /reset
-  else await auth.consumeCode(email, "reset", code).then(() => undefined);
+  // A reset code is only looked at here; /reset checks it again and uses it up with the new password
+  else await auth.peekCode(email, "reset", code);
   res.json({ ok: true });
 });
 

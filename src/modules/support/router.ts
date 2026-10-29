@@ -52,15 +52,23 @@ async function ownTicket(req: { reader?: { id: string } }, id: string) {
   return full;
 }
 
-supportRouter.get("/tickets", validate("query", pageQuery), async (req, res) => {
-  const { page, perPage } = parsed<z.infer<typeof pageQuery>>(req, "query");
+const listQuery = pageQuery.extend({ status: z.enum(["open", "closed"]).optional() });
+const openStatuses = ["open", "progress", "waiting"] as const;
+const closedStatuses = ["resolved", "closed"] as const;
+
+/** Just the numbers for the dashboard's badge. */
+supportRouter.get("/tickets/count", async (req, res) => {
+  const counting = () => db.from("tickets").select("id", { count: "exact", head: true }).eq("user_id", req.reader!.id);
+  const [open, closed] = await Promise.all([counting().in("status", [...openStatuses]), counting().in("status", [...closedStatuses])]);
+  res.json({ open: open.count ?? 0, closed: closed.count ?? 0 });
+});
+
+supportRouter.get("/tickets", validate("query", listQuery), async (req, res) => {
+  const { page, perPage, status } = parsed<z.infer<typeof listQuery>>(req, "query");
   const from = (page - 1) * perPage;
-  const { data, count } = await db
-    .from("tickets")
-    .select("*", { count: "exact" })
-    .eq("user_id", req.reader!.id)
-    .order("updated_at", { ascending: false })
-    .range(from, from + perPage - 1);
+  let query = db.from("tickets").select("*", { count: "exact" }).eq("user_id", req.reader!.id);
+  if (status) query = query.in("status", status === "open" ? [...openStatuses] : [...closedStatuses]);
+  const { data, count } = await query.order("updated_at", { ascending: false }).range(from, from + perPage - 1);
   res.json({
     tickets: (data ?? []).map((t) => ({ id: t.public_id, subject: t.subject, category: t.category, priority: t.priority, status: readerStatus(t), createdAt: t.created_at, updatedAt: t.updated_at })),
     page,

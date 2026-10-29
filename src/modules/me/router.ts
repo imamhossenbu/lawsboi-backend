@@ -5,7 +5,7 @@ import { validate } from "../../middleware/validate.js";
 import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { changePasswordSchema } from "../auth/schemas.js";
-import { changePassword } from "../auth/service.js";
+import { changePassword, deleteAccount } from "../auth/service.js";
 import { profileOf } from "./service.js";
 
 export const meRouter = Router();
@@ -57,4 +57,10 @@ meRouter.patch("/", validate("body", patchSchema), async (req, res) => {
 meRouter.post("/password", validate("body", changePasswordSchema), async (req, res) => {
   await changePassword(req.reader!.email, req.reader!.id, req.body.current, req.body.password);
   res.json({ ok: true });
+});
+
+/** Closes the account. The password confirms it's really them; everything they own goes with the Auth user. */
+meRouter.delete("/", validate("body", z.object({ password: z.string().min(1) })), async (req, res) => {
+  await deleteAccount(req.reader!.email, req.reader!.id, req.body.password);
+  res.status(204).end();
 });

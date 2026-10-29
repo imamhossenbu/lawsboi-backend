@@ -32,7 +32,7 @@ What it does today:
 - Signed-in calls send `Authorization: Bearer <accessToken>`; `/auth/login` and `/admin/auth/login` return
   `{ tokens: { accessToken, refreshToken, expiresAt } }`, and `/auth/refresh` trades the refresh token for new ones.
 - Errors are `{ error: { code, message, details? } }` with the matching status; `details` names the fields a form
-  should highlight (`{ email: "taken" }`, `{ code: "expired" }`).
+  should highlight (`{ email: "taken" }`, `{ email: "unverified" }`, `{ password: "wrong" }`, `{ code: "expired" }`).
 - Ids people see are the ids in URLs: readers `USR-10047`, tickets `TKT-000001`, team members `AGT-01`.
 
 ### Readers
@@ -46,8 +46,8 @@ What it does today:
 | `POST /auth/refresh` `{ refreshToken }` | New tokens. |
 | `POST /auth/logout` | Ends the session everywhere. |
 | `POST /auth/forgot` `{ email, lang }` → `POST /auth/reset` `{ email, code, password }` | Password reset. |
-| `GET /me`, `PATCH /me`, `POST /me/password` | The profile, its settings and the password. |
-| `GET /support/tickets`, `POST /support/tickets` (multipart) | The reader's tickets; a new one. |
+| `GET /me`, `PATCH /me`, `POST /me/password`, `DELETE /me` `{ password }` | The profile, its settings, the password; deleting the account. |
+| `GET /support/tickets?status=open\|closed&page=`, `GET /support/tickets/count`, `POST /support/tickets` (multipart) | The reader's tickets, their counts; a new one. |
 | `GET /support/tickets/:id`, `POST …/:id/messages`, `POST …/:id/close`, `POST …/:id/reopen` | One ticket. |
 | `GET /support/files/:fileId` | Redirects to a 10-minute link to an attachment. |
 

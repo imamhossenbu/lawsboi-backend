@@ -49,8 +49,9 @@ export async function issueCode(email: string, purpose: OtpPurpose, lang: Lang):
   return sendMail({ to: email, ...otpMail(code, purpose, lang) });
 }
 
-/** Checks a code and uses it up. Five wrong tries kill the code; an expired one needs a resend. */
-export async function consumeCode(email: string, purpose: OtpPurpose, code: string) {
+/** Finds the live code for this address and checks what was typed. Five wrong tries kill the code; an expired
+ * one needs a resend. Returns the row so the caller can consume it. */
+async function checkCode(email: string, purpose: OtpPurpose, code: string) {
   const row = await latestCode(email, purpose);
   if (!row) throw badRequest("Ask for a new code first.", { code: "expired" });
   if (Date.parse(row.expires_at) < Date.now()) throw badRequest("That code has expired. Ask for a new one.", { code: "expired" });
@@ -59,6 +60,18 @@ export async function consumeCode(email: string, purpose: OtpPurpose, code: stri
     await db.from("email_otps").update({ attempts: row.attempts + 1 }).eq("id", row.id);
     throw badRequest("That code isn't right.", { code: "wrong" });
   }
+  return row;
+}
+
+/** Checks a code without using it up: the reset form confirms the code on one screen and sets the password on
+ * the next, and the second step checks it again. */
+export async function peekCode(email: string, purpose: OtpPurpose, code: string) {
+  await checkCode(email, purpose, code);
+}
+
+/** Checks a code and uses it up. */
+export async function consumeCode(email: string, purpose: OtpPurpose, code: string) {
+  const row = await checkCode(email, purpose, code);
   await db.from("email_otps").update({ consumed_at: new Date().toISOString() }).eq("id", row.id);
 }
 
@@ -112,8 +125,8 @@ export async function verifySignup(email: string, code: string) {
 export async function login(email: string, password: string): Promise<{ tokens: Tokens; userId: string }> {
   const { data, error } = await authClient().auth.signInWithPassword({ email, password });
   if (error || !data.session) {
-    if (error?.code === "email_not_confirmed") throw unauthorized("Verify your email first: we've sent you a code.");
-    throw unauthorized("Wrong email or password.");
+    if (error?.code === "email_not_confirmed") throw new HttpError("unauthorized", "Verify your email first: we've sent you a code.", { email: "unverified" });
+    throw new HttpError("unauthorized", "Wrong email or password.", { password: "wrong" });
   }
   return { tokens: tokensOf(data.session), userId: data.user.id };
 }
@@ -142,6 +155,14 @@ export async function resetPassword(email: string, code: string, password: strin
   if (!user) throw badRequest("That code isn't right.", { code: "wrong" });
   await consumeCode(email, "reset", code);
   const { error } = await db.auth.admin.updateUserById(user.id, { password, email_confirm: true });
+  if (error) throw new Error(`Auth: ${error.message}`);
+}
+
+/** Deletes the account for good: the Auth user goes, and the profile, tickets and saved items cascade with it. */
+export async function deleteAccount(email: string, userId: string, password: string) {
+  const { error: wrong } = await authClient().auth.signInWithPassword({ email, password });
+  if (wrong) throw badRequest("The password isn't right.", { password: "wrong" });
+  const { error } = await db.auth.admin.deleteUser(userId);
   if (error) throw new Error(`Auth: ${error.message}`);
 }
 

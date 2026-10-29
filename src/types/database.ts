@@ -9,26 +9,26 @@ export type Database = {
   
   "public": {
           Tables: {
-            "announcement_reads": {
+            "announcement_deliveries": {
                   Row: {
-                    "announcement_id": string,"read_at": string,"user_id": string
+                    "announcement_id": string,"channel": Database["public"]['Enums']["announcement_channel"],"delivered_at": string,"opened_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "announcement_id": string,"read_at"?: string,"user_id": string
+                    "announcement_id": string,"channel": Database["public"]['Enums']["announcement_channel"],"delivered_at"?: string,"opened_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "announcement_id"?: string,"read_at"?: string,"user_id"?: string
+                    "announcement_id"?: string,"channel"?: Database["public"]['Enums']["announcement_channel"],"delivered_at"?: string,"opened_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
-      foreignKeyName: "announcement_reads_announcement_id_fkey"
+      foreignKeyName: "announcement_deliveries_announcement_id_fkey"
       columns: ["announcement_id"]
 isOneToOne: false
       referencedRelation: "announcements"
       referencedColumns: ["id"]
     },{
-      foreignKeyName: "announcement_reads_user_id_fkey"
+      foreignKeyName: "announcement_deliveries_user_id_fkey"
       columns: ["user_id"]
 isOneToOne: false
       referencedRelation: "profiles"
@@ -37,14 +37,14 @@ isOneToOne: false
                   ]
                 },"announcements": {
                   Row: {
-                    "at": string,"banner_ended": boolean,"banner_until": string | null,"body": string,"body_bn": string,"channels": (Database["public"]['Enums']["announcement_channel"])[],"created_at": string,"created_by": string | null,"delivery": Json | null,"id": string,"link": string | null,"number": number,"plan_ids": (string)[],"public_id": string,"status": Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at": string
+                    "at": string,"banner_ended": boolean,"banner_until": string | null,"body": string,"body_bn": string,"channels": (Database["public"]['Enums']["announcement_channel"])[],"created_at": string,"created_by": string | null,"delivery": Json | null,"id": string,"link": string | null,"number": number,"plan_ids": (string)[],"public_id": string,"sending_started_at": string | null,"sent_at": string | null,"status": Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "at"?: string,"banner_ended"?: boolean,"banner_until"?: string | null,"body": string,"body_bn": string,"channels"?: (Database["public"]['Enums']["announcement_channel"])[],"created_at"?: string,"created_by"?: string | null,"delivery"?: Json | null,"id"?: string,"link"?: string | null,"number"?: never,"plan_ids"?: (string)[],"public_id"?: never,"status"?: Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at"?: string
+                    "at"?: string,"banner_ended"?: boolean,"banner_until"?: string | null,"body": string,"body_bn": string,"channels"?: (Database["public"]['Enums']["announcement_channel"])[],"created_at"?: string,"created_by"?: string | null,"delivery"?: Json | null,"id"?: string,"link"?: string | null,"number"?: never,"plan_ids"?: (string)[],"public_id"?: never,"sending_started_at"?: string | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["announcement_status"],"title": string,"title_bn": string,"topic": Database["public"]['Enums']["notification_topic"],"updated_at"?: string
                   }
                   Update: {
-                    "at"?: string,"banner_ended"?: boolean,"banner_until"?: string | null,"body"?: string,"body_bn"?: string,"channels"?: (Database["public"]['Enums']["announcement_channel"])[],"created_at"?: string,"created_by"?: string | null,"delivery"?: Json | null,"id"?: string,"link"?: string | null,"number"?: never,"plan_ids"?: (string)[],"public_id"?: never,"status"?: Database["public"]['Enums']["announcement_status"],"title"?: string,"title_bn"?: string,"topic"?: Database["public"]['Enums']["notification_topic"],"updated_at"?: string
+                    "at"?: string,"banner_ended"?: boolean,"banner_until"?: string | null,"body"?: string,"body_bn"?: string,"channels"?: (Database["public"]['Enums']["announcement_channel"])[],"created_at"?: string,"created_by"?: string | null,"delivery"?: Json | null,"id"?: string,"link"?: string | null,"number"?: never,"plan_ids"?: (string)[],"public_id"?: never,"sending_started_at"?: string | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["announcement_status"],"title"?: string,"title_bn"?: string,"topic"?: Database["public"]['Enums']["notification_topic"],"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -57,14 +57,14 @@ isOneToOne: false
                   ]
                 },"assistant_questions": {
                   Row: {
-                    "answer": Json | null,"created_at": string,"flagged": boolean,"id": string,"lang": Database["public"]['Enums']["lang"],"question": string,"user_id": string | null
+                    "answer": Json | null,"created_at": string,"flagged": boolean,"id": string,"lang": Database["public"]['Enums']["lang"],"question": string,"scope": string,"user_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question": string,"user_id"?: string | null
+                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question": string,"scope"?: string,"user_id"?: string | null
                   }
                   Update: {
-                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question"?: string,"user_id"?: string | null
+                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question"?: string,"scope"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -92,6 +92,86 @@ isOneToOne: false
       columns: ["actor_id"]
 isOneToOne: false
       referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"catalogue_reads": {
+                  Row: {
+                    "id": number,"kind": string,"n": string | null,"read_at": string,"slug": string,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: never,"kind": string,"n"?: string | null,"read_at"?: string,"slug": string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "id"?: never,"kind"?: string,"n"?: string | null,"read_at"?: string,"slug"?: string,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "catalogue_reads_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"catalogue_revisions": {
+                  Row: {
+                    "actor_id": string | null,"created_at": string,"id": string,"kind": string,"law_slug": string | null,"n": string | null,"target_slug": string,"target_type": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"created_at"?: string,"id"?: string,"kind": string,"law_slug"?: string | null,"n"?: string | null,"target_slug": string,"target_type": string
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"created_at"?: string,"id"?: string,"kind"?: string,"law_slug"?: string | null,"n"?: string | null,"target_slug"?: string,"target_type"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "catalogue_revisions_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"collection_items": {
+                  Row: {
+                    "added_at": string,"collection_id": string,"item_key": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "added_at"?: string,"collection_id": string,"item_key": string
+                  }
+                  Update: {
+                    "added_at"?: string,"collection_id"?: string,"item_key"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "collection_items_collection_id_fkey"
+      columns: ["collection_id"]
+isOneToOne: false
+      referencedRelation: "collections"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"collections": {
+                  Row: {
+                    "color": string,"created_at": string,"description": string,"icon": string,"id": string,"name": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "color"?: string,"created_at"?: string,"description"?: string,"icon"?: string,"id"?: string,"name": string,"user_id": string
+                  }
+                  Update: {
+                    "color"?: string,"created_at"?: string,"description"?: string,"icon"?: string,"id"?: string,"name"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "collections_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
       referencedColumns: ["id"]
     }
                   ]
@@ -151,17 +231,69 @@ isOneToOne: false
                   ]
                 },"feature_flags": {
                   Row: {
-                    "access": NonNullable<Json>,"allowance": Json | null,"enabled": boolean,"group": string,"id": string,"pages": (string)[],"per": string | null,"rollout": number | null,"updated_at": string
+                    "access": NonNullable<Json>,"allowance": Json | null,"enabled": boolean,"group": string,"id": string,"pages": (string)[],"per": string | null,"reader_today": string,"rollout": number | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "access"?: NonNullable<Json>,"allowance"?: Json | null,"enabled"?: boolean,"group": string,"id": string,"pages"?: (string)[],"per"?: string | null,"rollout"?: number | null,"updated_at"?: string
+                    "access"?: NonNullable<Json>,"allowance"?: Json | null,"enabled"?: boolean,"group": string,"id": string,"pages"?: (string)[],"per"?: string | null,"reader_today"?: string,"rollout"?: number | null,"updated_at"?: string
                   }
                   Update: {
-                    "access"?: NonNullable<Json>,"allowance"?: Json | null,"enabled"?: boolean,"group"?: string,"id"?: string,"pages"?: (string)[],"per"?: string | null,"rollout"?: number | null,"updated_at"?: string
+                    "access"?: NonNullable<Json>,"allowance"?: Json | null,"enabled"?: boolean,"group"?: string,"id"?: string,"pages"?: (string)[],"per"?: string | null,"reader_today"?: string,"rollout"?: number | null,"updated_at"?: string
                   }
                   Relationships: [
                     
+                  ]
+                },"help_article_reads": {
+                  Row: {
+                    "article_slug": string,"id": string,"read_at": string,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_slug": string,"id"?: string,"read_at"?: string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "article_slug"?: string,"id"?: string,"read_at"?: string,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "help_article_reads_article_slug_fkey"
+      columns: ["article_slug"]
+isOneToOne: false
+      referencedRelation: "help_articles"
+      referencedColumns: ["slug"]
+    },{
+      foreignKeyName: "help_article_reads_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"help_article_votes": {
+                  Row: {
+                    "article_slug": string,"created_at": string,"helpful": boolean,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "article_slug": string,"created_at"?: string,"helpful": boolean,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "article_slug"?: string,"created_at"?: string,"helpful"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "help_article_votes_article_slug_fkey"
+      columns: ["article_slug"]
+isOneToOne: false
+      referencedRelation: "help_articles"
+      referencedColumns: ["slug"]
+    },{
+      foreignKeyName: "help_article_votes_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"help_articles": {
                   Row: {
@@ -179,14 +311,14 @@ isOneToOne: false
                   ]
                 },"judgment_laws": {
                   Row: {
-                    "judgment_slug": string,"kind": string,"law_slug": string,"n": string
+                    "id": string,"judgment_slug": string,"kind": string,"law_slug": string,"n": string,"rule": number | null,"sort_order": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "judgment_slug": string,"kind"?: string,"law_slug": string,"n": string
+                    "id"?: string,"judgment_slug": string,"kind"?: string,"law_slug": string,"n": string,"rule"?: number | null,"sort_order"?: number
                   }
                   Update: {
-                    "judgment_slug"?: string,"kind"?: string,"law_slug"?: string,"n"?: string
+                    "id"?: string,"judgment_slug"?: string,"kind"?: string,"law_slug"?: string,"n"?: string,"rule"?: number | null,"sort_order"?: number
                   }
                   Relationships: [
                     {
@@ -205,28 +337,48 @@ isOneToOne: false
                   ]
                 },"judgments": {
                   Row: {
-                    "author": string | null,"case_no": string,"citation": string,"court": string,"created_at": string,"decided_on": string | null,"excerpt": string | null,"judges": (string)[],"keywords": (string)[],"language": Database["public"]['Enums']["lang"],"origin": string | null,"paragraphs": NonNullable<Json>,"parties": Json | null,"published": boolean,"search": unknown,"slug": string,"source": Json | null,"title": string,"title_tr": string | null,"type": string,"updated_at": string
+                    "advocates": NonNullable<Json>,"author": string | null,"case_no": string,"citation": string,"citations_referred": (string)[],"court": string,"created_at": string,"date_known": boolean,"decided_on": string | null,"excerpt": string | null,"hearing": string | null,"judges": (string)[],"keywords": (string)[],"language": Database["public"]['Enums']["lang"],"origin": string | null,"paragraph_count": number,"paragraphs": NonNullable<Json>,"paragraphs_tr": Json | null,"parties": Json | null,"petition": boolean,"published": boolean,"related_slugs": (string)[],"search": unknown,"slug": string,"source": Json | null,"title": string,"title_tr": string | null,"type": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "author"?: string | null,"case_no"?: string,"citation": string,"court": string,"created_at"?: string,"decided_on"?: string | null,"excerpt"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraphs"?: NonNullable<Json>,"parties"?: Json | null,"published"?: boolean,"search"?: never,"slug": string,"source"?: Json | null,"title": string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
+                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation": string,"citations_referred"?: (string)[],"court": string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_slugs"?: (string)[],"search"?: never,"slug": string,"source"?: Json | null,"title": string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "author"?: string | null,"case_no"?: string,"citation"?: string,"court"?: string,"created_at"?: string,"decided_on"?: string | null,"excerpt"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraphs"?: NonNullable<Json>,"parties"?: Json | null,"published"?: boolean,"search"?: never,"slug"?: string,"source"?: Json | null,"title"?: string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
+                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation"?: string,"citations_referred"?: (string)[],"court"?: string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_slugs"?: (string)[],"search"?: never,"slug"?: string,"source"?: Json | null,"title"?: string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     
                   ]
-                },"law_parts": {
+                },"law_orders": {
                   Row: {
-                    "banner": string | null,"id": string,"law_slug": string,"part_id": string,"range": string,"sort_order": number,"sub": string | null,"title": string,"title_tr": string | null
+                    "id": string,"law_slug": string,"n": string,"roman": string,"sort_order": number,"title": string,"title_tr": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "banner"?: string | null,"id"?: string,"law_slug": string,"part_id": string,"range"?: string,"sort_order": number,"sub"?: string | null,"title": string,"title_tr"?: string | null
+                    "id"?: string,"law_slug": string,"n": string,"roman": string,"sort_order": number,"title": string,"title_tr"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "banner"?: string | null,"id"?: string,"law_slug"?: string,"part_id"?: string,"range"?: string,"sort_order"?: number,"sub"?: string | null,"title"?: string,"title_tr"?: string | null
+                    "id"?: string,"law_slug"?: string,"n"?: string,"roman"?: string,"sort_order"?: number,"title"?: string,"title_tr"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "law_orders_law_slug_fkey"
+      columns: ["law_slug"]
+isOneToOne: false
+      referencedRelation: "laws"
+      referencedColumns: ["slug"]
+    }
+                  ]
+                },"law_parts": {
+                  Row: {
+                    "banner": string | null,"id": string,"law_slug": string,"part_id": string,"range": string,"sort_order": number,"sub": string | null,"title": string,"title_tr": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "banner"?: string | null,"id"?: string,"law_slug": string,"part_id": string,"range"?: string,"sort_order": number,"sub"?: string | null,"title": string,"title_tr"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "banner"?: string | null,"id"?: string,"law_slug"?: string,"part_id"?: string,"range"?: string,"sort_order"?: number,"sub"?: string | null,"title"?: string,"title_tr"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -237,16 +389,42 @@ isOneToOne: false
       referencedColumns: ["slug"]
     }
                   ]
-                },"law_sections": {
+                },"law_rules": {
                   Row: {
-                    "body": NonNullable<Json>,"id": string,"law_slug": string,"n": string,"notes": NonNullable<Json>,"part_id": string | null,"sort_order": number,"title": string,"translation": Json | null,"updated_at": string
+                    "body": NonNullable<Json>,"id": string,"law_slug": string,"n": string,"order_id": string,"search": unknown,"sort_order": number,"title": string,"translation": Json | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "body"?: NonNullable<Json>,"id"?: string,"law_slug": string,"n": string,"notes"?: NonNullable<Json>,"part_id"?: string | null,"sort_order": number,"title": string,"translation"?: Json | null,"updated_at"?: string
+                    "body"?: NonNullable<Json>,"id"?: string,"law_slug": string,"n": string,"order_id": string,"search"?: never,"sort_order": number,"title": string,"translation"?: Json | null,"updated_at"?: string
                   }
                   Update: {
-                    "body"?: NonNullable<Json>,"id"?: string,"law_slug"?: string,"n"?: string,"notes"?: NonNullable<Json>,"part_id"?: string | null,"sort_order"?: number,"title"?: string,"translation"?: Json | null,"updated_at"?: string
+                    "body"?: NonNullable<Json>,"id"?: string,"law_slug"?: string,"n"?: string,"order_id"?: string,"search"?: never,"sort_order"?: number,"title"?: string,"translation"?: Json | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "law_rules_law_slug_fkey"
+      columns: ["law_slug"]
+isOneToOne: false
+      referencedRelation: "laws"
+      referencedColumns: ["slug"]
+    },{
+      foreignKeyName: "law_rules_order_id_fkey"
+      columns: ["order_id"]
+isOneToOne: false
+      referencedRelation: "law_orders"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"law_sections": {
+                  Row: {
+                    "amendments": NonNullable<Json>,"body": NonNullable<Json>,"explanation": string | null,"id": string,"law_slug": string,"n": string,"notes": NonNullable<Json>,"part_id": string | null,"related": (string)[],"search": unknown,"sort_order": number,"title": string,"title_tr": string | null,"translation": Json | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amendments"?: NonNullable<Json>,"body"?: NonNullable<Json>,"explanation"?: string | null,"id"?: string,"law_slug": string,"n": string,"notes"?: NonNullable<Json>,"part_id"?: string | null,"related"?: (string)[],"search"?: never,"sort_order": number,"title": string,"title_tr"?: string | null,"translation"?: Json | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "amendments"?: NonNullable<Json>,"body"?: NonNullable<Json>,"explanation"?: string | null,"id"?: string,"law_slug"?: string,"n"?: string,"notes"?: NonNullable<Json>,"part_id"?: string | null,"related"?: (string)[],"search"?: never,"sort_order"?: number,"title"?: string,"title_tr"?: string | null,"translation"?: Json | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -265,14 +443,14 @@ isOneToOne: false
                   ]
                 },"laws": {
                   Row: {
-                    "act_no": string,"bdlaws_id": number | null,"created_at": string,"description": string,"enacted_on": string,"language": Database["public"]['Enums']["lang"],"long_title": string,"preamble": string,"published": boolean,"search": unknown,"section_count": number,"slug": string,"status": string,"subject": string,"title": string,"title_bn": string | null,"type": string,"unit": string,"updated_at": string,"year": number
+                    "act_no": string,"act_no_bn": string | null,"bdlaws_id": number | null,"created_at": string,"curated": boolean,"description": string,"description_bn": string | null,"enacted_on": string,"language": Database["public"]['Enums']["lang"],"long_title": string,"preamble": string,"published": boolean,"search": unknown,"section_count": number,"slug": string,"sort_title": string | null,"status": string,"subject": string,"title": string,"title_bn": string | null,"type": string,"unit": string,"updated_at": string,"views": number,"year": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "act_no"?: string,"bdlaws_id"?: number | null,"created_at"?: string,"description"?: string,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug": string,"status"?: string,"subject"?: string,"title": string,"title_bn"?: string | null,"type": string,"unit"?: string,"updated_at"?: string,"year": number
+                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug": string,"sort_title"?: never,"status"?: string,"subject"?: string,"title": string,"title_bn"?: string | null,"type": string,"unit"?: string,"updated_at"?: string,"views"?: number,"year": number
                   }
                   Update: {
-                    "act_no"?: string,"bdlaws_id"?: number | null,"created_at"?: string,"description"?: string,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug"?: string,"status"?: string,"subject"?: string,"title"?: string,"title_bn"?: string | null,"type"?: string,"unit"?: string,"updated_at"?: string,"year"?: number
+                    "act_no"?: string,"act_no_bn"?: string | null,"bdlaws_id"?: number | null,"created_at"?: string,"curated"?: boolean,"description"?: string,"description_bn"?: string | null,"enacted_on"?: string,"language"?: Database["public"]['Enums']["lang"],"long_title"?: string,"preamble"?: string,"published"?: boolean,"search"?: never,"section_count"?: number,"slug"?: string,"sort_title"?: never,"status"?: string,"subject"?: string,"title"?: string,"title_bn"?: string | null,"type"?: string,"unit"?: string,"updated_at"?: string,"views"?: number,"year"?: number
                   }
                   Relationships: [
                     
@@ -348,6 +526,60 @@ isOneToOne: false
       referencedRelation: "plans"
       referencedColumns: ["id"]
     }
+                  ]
+                },"research_history": {
+                  Row: {
+                    "context": string | null,"context_bn": string | null,"created_at": string,"href": string,"id": string,"kind": string,"scope": string | null,"title": string,"title_bn": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "context"?: string | null,"context_bn"?: string | null,"created_at"?: string,"href": string,"id"?: string,"kind": string,"scope"?: string | null,"title": string,"title_bn": string,"user_id": string
+                  }
+                  Update: {
+                    "context"?: string | null,"context_bn"?: string | null,"created_at"?: string,"href"?: string,"id"?: string,"kind"?: string,"scope"?: string | null,"title"?: string,"title_bn"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "research_history_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"saved_items": {
+                  Row: {
+                    "created_at": string,"href": string,"id": string,"kind": string,"subtitle": string,"title": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"href": string,"id"?: string,"kind": string,"subtitle"?: string,"title": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"href"?: string,"id"?: string,"kind"?: string,"subtitle"?: string,"title"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "saved_items_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"schema_migrations": {
+                  Row: {
+                    "applied_at": string,"name": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "applied_at"?: string,"name": string
+                  }
+                  Update: {
+                    "applied_at"?: string,"name"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 },"site_pages": {
                   Row: {
@@ -538,14 +770,103 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "announcement_delivery_stats": {
+                  Row: {
+                    "announcement_id": string,"channel": Database["public"]['Enums']["announcement_channel"],"opened": number | null,"reached": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "announcement_deliveries_announcement_id_fkey"
+      columns: ["announcement_id"]
+isOneToOne: false
+      referencedRelation: "announcements"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
-            "is_owner":
+            "announcement_recipients":
+{ Args: { "channel": string,"plan_ids": (string)[],"topic": string }; Returns: {
+              "email": string,"id": string,"lang": Database["public"]['Enums']["lang"],"name": string,"plan_id": string
+            }[]
+                           },
+"audit_actor_counts":
+{ Args: { "since": string }; Returns: {
+              "actor_id": string,"count": number
+            }[]
+                           },
+"blocks_text":
+{ Args: { "blocks": Json }; Returns: string
+                           },
+"dashboard_series":
+{ Args: { "months_back"?: number }; Returns: {
+              "active_users": number,"month": string,"new_subscriptions": number,"refunds": number,"revenue": number,"revenue_by_plan": Json,"total_users": number
+            }[]
+                           },
+"database_stats":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "connections": number,"max_connections": number,"size_bytes": number
+            }[]
+                           },
+"dhaka_month":
+{ Args: { "ts": string }; Returns: string
+                           },
+"is_owner":
 { Args: { "owner": string }; Returns: boolean
                            },
 "join_words":
 { Args: { "words": (string)[] }; Returns: string
+                           },
+"latin_digits":
+{ Args: { "value": string }; Returns: string
+                           },
+"notification_on":
+{ Args: { "channel": string,"settings": Json,"topic": string }; Returns: boolean
+                           },
+"payments_month_figures":
+{ Args: { "month"?: string }; Returns: {
+              "amount": number,"count": number,"method": Database["public"]['Enums']["payment_method"],"plan_id": string,"status": Database["public"]['Enums']["payment_status"]
+            }[]
+                           },
+"plan_subscriber_counts":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "plan_id": string,"subscribers": number,"yearly_subscribers": number
+            }[]
+                           },
+"search_judgments":
+{ Args: { "max_rows"?: number,"tsq": unknown }; Returns: {
+              "rank": number,"slug": string
+            }[]
+                           },
+"search_laws":
+{ Args: { "max_rows"?: number,"tsq": unknown }; Returns: {
+              "rank": number,"slug": string
+            }[]
+                           },
+"search_provisions":
+{ Args: { "max_rows"?: number,"tsq": unknown }; Returns: {
+              "kind": string,"law_slug": string,"n": string,"order_n": string,"rank": number,"roman": string,"snippet": string,"snippet_tr": string,"sort_order": number,"title": string,"title_tr": string
+            }[]
+                           },
+"strings_text":
+{ Args: { "strings": Json }; Returns: string
+                           },
+"subscription_figures":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "active": number,"prev_active": number,"prev_renewals": number,"renewals": number
+            }[]
+                           },
+"tickets_open_last_month":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "attention": number,"open": number
+            }[]
+                           },
+"user_figures":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "active": number,"joined_last_month": number,"joined_this_month": number,"prev_active": number,"prev_total": number,"total": number
+            }[]
                            }
           }
           Enums: {

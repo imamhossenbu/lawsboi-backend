@@ -81,6 +81,8 @@ const listQuery = z.object({
   category: z.enum(categories).optional(),
   // "me", "none", or a team id
   assignee: z.string().optional(),
+  // A reader's tickets ("USR-10047")
+  userId: z.string().regex(/^USR-\d+$/).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -95,6 +97,10 @@ adminTicketsRouter.get("/", validate("query", listQuery), async (req, res) => {
   }
   if (q.priority) query = query.eq("priority", q.priority);
   if (q.category) query = query.eq("category", q.category);
+  if (q.userId) {
+    const reader = unwrap(await db.from("profiles").select("id").eq("public_id", q.userId).maybeSingle(), "That reader");
+    query = query.eq("user_id", reader.id);
+  }
   if (q.assignee === "none") query = query.is("assignee_id", null);
   else if (q.assignee) {
     const assigneeId = await resolveAssignee(q.assignee, req.member!);
@@ -121,17 +127,49 @@ adminTicketsRouter.get("/", validate("query", listQuery), async (req, res) => {
   res.json({ tickets, page: q.page, perPage: q.perPage, total: count ?? 0 });
 });
 
-/** Open, waiting and needs-attention counts for the stat cards. */
+/** The stat cards' figures, in one call. Months are Bangladesh time. */
 adminTicketsRouter.get("/stats", async (_req, res) => {
   const counting = () => db.from("tickets").select("id", { count: "exact", head: true });
   const live: TicketStatus[] = ["open", "progress", "waiting"];
-  const [open, waiting, attention, resolved] = await Promise.all([
+  const DHAKA = 6 * 60 * 60 * 1000;
+  const now = new Date(Date.now() + DHAKA);
+  const monthStart = (shift: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + shift, 1) - DHAKA).toISOString();
+  const [open, progress, waiting, unassigned, urgent, attention, resolved, resolvedThisMonth, resolvedLastMonth, openedThisMonth, openedLastMonth] = await Promise.all([
     counting().in("status", live),
+    counting().eq("status", "progress"),
     counting().eq("status", "waiting"),
+    counting().in("status", live).is("assignee_id", null),
+    counting().in("status", live).eq("priority", "urgent"),
     counting().in("status", live).in("priority", ["high", "urgent"]),
     counting().in("status", ["resolved", "closed"]),
+    counting().gte("resolved_at", monthStart(0)),
+    counting().gte("resolved_at", monthStart(-1)).lt("resolved_at", monthStart(0)),
+    counting().gte("created_at", monthStart(0)),
+    counting().gte("created_at", monthStart(-1)).lt("created_at", monthStart(0)),
   ]);
-  res.json({ open: open.count ?? 0, waiting: waiting.count ?? 0, attention: attention.count ?? 0, resolved: resolved.count ?? 0 });
+  const n = (r: { count: number | null }) => r.count ?? 0;
+  res.json({
+    open: n(open),
+    progress: n(progress),
+    waiting: n(waiting),
+    unassigned: n(unassigned),
+    urgent: n(urgent),
+    attention: n(attention),
+    resolved: n(resolved),
+    thisMonth: { resolved: n(resolvedThisMonth), opened: n(openedThisMonth) },
+    lastMonth: { resolved: n(resolvedLastMonth), opened: n(openedLastMonth) },
+  });
+});
+
+/** Open tickets per team member ("AGT-01" → 3), for the team page. */
+adminTicketsRouter.get("/assignee-counts", async (_req, res) => {
+  const [rows, team] = await Promise.all([db.from("tickets").select("assignee_id").in("status", ["open", "progress", "waiting"]).not("assignee_id", "is", null), teamDirectory()]);
+  const counts: Record<string, number> = {};
+  for (const r of rows.data ?? []) {
+    const id = r.assignee_id && team.get(r.assignee_id)?.public_id;
+    if (id) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  res.json({ counts });
 });
 
 /* ---------------------------------------------------------------- create */
