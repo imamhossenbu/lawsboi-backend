@@ -45,7 +45,7 @@ const monthRange = (month: string) => {
 const QUESTION = "id,question,lang,scope,answer,flagged,created_at,user_id,profiles!inner(public_id,name,name_bn,email,plan_id)";
 
 function questionOf(q: { id: string; question: string; lang: string; scope: string; answer: unknown; flagged: boolean; created_at: string; profiles: { public_id: string; name: string; name_bn: string | null; email: string; plan_id: string } | null }) {
-  const a = (q.answer ?? {}) as { laws?: unknown[]; cases?: unknown[] };
+  const a = (q.answer ?? {}) as { laws?: unknown[]; cases?: unknown[]; text?: string | null; citations?: unknown[]; model?: string | null; reason?: string | null };
   return {
     id: q.id,
     question: q.question,
@@ -54,6 +54,11 @@ function questionOf(q: { id: string; question: string; lang: string; scope: stri
     coverage: coverageOf(q.answer),
     laws: a.laws ?? [],
     cases: a.cases ?? [],
+    // The written answer (null on questions asked before the model was connected, or when writing failed)
+    text: a.text ?? null,
+    citations: a.citations ?? [],
+    model: a.model ?? null,
+    reason: a.reason ?? null,
     flagged: q.flagged,
     at: q.created_at,
     user: q.profiles ? { id: q.profiles.public_id, name: { en: q.profiles.name, bn: q.profiles.name_bn ?? q.profiles.name }, email: q.profiles.email, plan: q.profiles.plan_id } : null,

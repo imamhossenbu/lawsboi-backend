@@ -23,6 +23,11 @@ const schema = z.object({
   SUPPORT_INBOX: z.string().optional(),
   // Signs the one-time codes' hashes; falls back to the Supabase secret so there is always one
   OTP_SECRET: z.string().optional(),
+
+  // Google Gemini. Without a key the assistant answers with its sources only and the panel's AI menu says so
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-3.5-flash"),
+  GEMINI_FALLBACK_MODEL: z.string().default("gemini-3.5-flash-lite"),
 });
 
 export type Env = z.infer<typeof schema> & { smtp: { host: string; port: number; user: string; pass: string; from: string } | null };

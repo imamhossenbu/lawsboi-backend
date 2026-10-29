@@ -9,7 +9,33 @@ export type Database = {
   
   "public": {
           Tables: {
-            "announcement_deliveries": {
+            "ai_usage": {
+                  Row: {
+                    "at": string,"error": string | null,"id": string,"input_tokens": number,"member_id": string | null,"model": string | null,"ms": number,"ok": boolean,"output_tokens": number,"purpose": string,"total_tokens": number,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"error"?: string | null,"id"?: string,"input_tokens"?: number,"member_id"?: string | null,"model"?: string | null,"ms"?: number,"ok": boolean,"output_tokens"?: number,"purpose": string,"total_tokens"?: number,"user_id"?: string | null
+                  }
+                  Update: {
+                    "at"?: string,"error"?: string | null,"id"?: string,"input_tokens"?: number,"member_id"?: string | null,"model"?: string | null,"ms"?: number,"ok"?: boolean,"output_tokens"?: number,"purpose"?: string,"total_tokens"?: number,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_usage_member_id_fkey"
+      columns: ["member_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_usage_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"announcement_deliveries": {
                   Row: {
                     "announcement_id": string,"channel": Database["public"]['Enums']["announcement_channel"],"delivered_at": string,"opened_at": string | null,"user_id": string
                   }

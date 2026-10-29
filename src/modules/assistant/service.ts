@@ -3,8 +3,8 @@ import { db } from "../../lib/supabase.js";
 import { summariesOf } from "../catalogue/cases.service.js";
 import { clip, courtLabel, latinDigits, normalize, orderLabel, parseQuery, ruleLabel, sectionLabel, text, toTsQuery, type Text } from "../catalogue/shared.js";
 
-// The assistant: no language model yet, so an answer is the provisions and judgments that best match the
-// question, quoted, found by Postgres full-text search over everything the catalogue holds.
+// The assistant's retrieval: the provisions and judgments that best match the question, found by Postgres full-text
+// search over everything the catalogue holds. answer.ts turns them into a written answer with the language model.
 
 export type Scope = "all" | "laws" | "cases";
 export type Lang = "en" | "bn";
@@ -27,6 +27,18 @@ export interface Answer {
   scope: Scope;
   laws: SourceHit[];
   cases: SourceHit[];
+}
+
+/** Where a source's full text lives, so the answer can be written from more than its snippet. */
+export type SourceRef =
+  | { kind: "section"; lawSlug: string; n: string }
+  | { kind: "rule"; lawSlug: string; orderN: string; n: string }
+  | { kind: "case"; slug: string };
+
+export interface Retrieved {
+  answer: Answer;
+  /** One per hit, laws first then cases, in the same order. */
+  refs: SourceRef[];
 }
 
 const STOP = new Set(
@@ -61,12 +73,26 @@ export function bestSentence(source: string, words: string[]) {
   return clip(best, 240);
 }
 
+/** The matching sources only, as the assistant answered before it could write. */
 export async function answer(question: string, scope: Scope): Promise<Answer> {
+  return (await retrieve(question, scope)).answer;
+}
+
+/** Any of the words, for a model-written list of search terms where no source holds them all; ranking still puts
+ * the sources holding the most of them first. */
+export const anyWordsQuery = (words: string[]) => toTsQuery(words)?.replace(/ & /g, " | ") ?? null;
+
+export async function retrieve(question: string, scope: Scope, options: { anyWords?: boolean } = {}): Promise<Retrieved> {
   const words = questionWords(question);
-  const { numbers } = parseQuery(question);
-  const tsq = toTsQuery(words);
+  // Section numbers only count when the reader typed them, not in a model's list of terms
+  const numbers = options.anyWords ? [] : parseQuery(question).numbers;
+  const tsq = options.anyWords ? anyWordsQuery(words) : toTsQuery(words);
+  // Ranks of any-word matches run lower, so only the relative cut-off applies to them
+  const floor = options.anyWords ? 0 : 0.3;
   const out: Answer = { query: question, scope, laws: [], cases: [] };
-  if (!tsq && !numbers.length) return out;
+  const lawRefs: SourceRef[] = [];
+  const caseRefs: SourceRef[] = [];
+  if (!tsq && !numbers.length) return { answer: out, refs: [] };
 
   if (scope !== "cases") {
     const rows = tsq ? unwrap(await db.rpc("search_provisions", { tsq, max_rows: 30 })) : [];
@@ -84,9 +110,10 @@ export async function answer(question: string, scope: Scope): Promise<Answer> {
     ].sort((a, b) => b.score - a.score);
     const top = scored[0]?.score ?? 0;
     out.laws = scored
-      .filter((r) => r.score >= Math.max(0.3, top * 0.35) && lawBy.has(r.law_slug))
+      .filter((r) => r.score >= Math.max(floor, top * 0.35) && lawBy.has(r.law_slug))
       .slice(0, 4)
       .map((r) => {
+        lawRefs.push(r.kind === "rule" ? { kind: "rule", lawSlug: r.law_slug, orderN: r.order_n!, n: r.n } : { kind: "section", lawSlug: r.law_slug, n: r.n });
         const law = lawBy.get(r.law_slug)!;
         const unit = law.unit as "sections" | "articles";
         const label = r.kind === "rule" ? joinLabel(orderLabel(r.roman!, r.order_n!), ruleLabel(r.n)) : sectionLabel(r.n, unit);
@@ -114,6 +141,7 @@ export async function answer(question: string, scope: Scope): Promise<Answer> {
         .sort((a, b) => (rank.get(b.slug) ?? 0) - (rank.get(a.slug) ?? 0))
         .slice(0, 4)
         .map((j) => {
+          caseRefs.push({ kind: "case", slug: j.slug });
           const s = summaries.find((x) => x.slug === j.slug)!;
           const opening = (Array.isArray(j.paragraphs) ? (j.paragraphs as string[]).join(" ") : "").slice(0, 3500) || s.excerpt;
           return {
@@ -128,7 +156,7 @@ export async function answer(question: string, scope: Scope): Promise<Answer> {
         });
     }
   }
-  return out;
+  return { answer: out, refs: [...lawRefs, ...caseRefs] };
 }
 
 const joinLabel = (a: Text, b: Text): Text => ({ en: `${a.en}, ${b.en}`, bn: `${a.bn}, ${b.bn}` });

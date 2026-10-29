@@ -5,10 +5,13 @@ import { requireReader } from "../../middleware/auth.js";
 import { parsed, validate } from "../../middleware/validate.js";
 import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
-import { answer, assertAllowance, usage } from "./service.js";
+import { retrieveForAnswer, withWriting, writeAnswer } from "./answer.js";
+import { assertAllowance, usage } from "./service.js";
 
 // Readers: ask the assistant (counted against the plan's monthly allowance), see the month's usage and their history.
-// Visitors get a few rate-limited, unlogged previews from the landing page.
+// Visitors get a few rate-limited, unlogged previews from the landing page, with a short answer.
+// An answer is the matching sources plus a text written from them (answer.ts); a failed write still returns 201
+// with the sources, text: null and a reason, and still counts as a question.
 
 export const assistantRouter = Router();
 
@@ -22,7 +25,9 @@ const previews = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeader
 
 assistantRouter.post("/preview", previews, validate("body", askSchema), async (req, res) => {
   const b = req.body as z.infer<typeof askSchema>;
-  res.json({ answer: await answer(b.question, b.scope) });
+  const found = await retrieveForAnswer(b.question, b.scope, b.lang, {});
+  const written = await writeAnswer(b.question, b.lang, found, { short: true, caller: {} });
+  res.json({ answer: withWriting(found.answer, written) });
 });
 
 assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (req, res) => {
@@ -30,11 +35,19 @@ assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (
   const b = req.body as z.infer<typeof askSchema>;
   const before = await usage(me.id, me.plan_id);
   assertAllowance(before);
-  const result = await answer(b.question, b.scope);
+  const found = await retrieveForAnswer(b.question, b.scope, b.lang, { userId: me.id });
+  const written = await writeAnswer(b.question, b.lang, found, { caller: { userId: me.id } });
+  const result = withWriting(found.answer, written);
   const row = unwrap(
     await db
       .from("assistant_questions")
-      .insert({ user_id: me.id, question: b.question, lang: b.lang, scope: b.scope, answer: { laws: result.laws, cases: result.cases } as never })
+      .insert({
+        user_id: me.id,
+        question: b.question,
+        lang: written.lang,
+        scope: b.scope,
+        answer: { laws: result.laws, cases: result.cases, text: result.text, citations: result.citations, model: result.model, reason: result.reason ?? null } as never,
+      })
       .select("id,created_at")
       .single(),
   );
