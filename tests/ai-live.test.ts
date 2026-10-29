@@ -1,6 +1,6 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { adminToken, app, reader, sweep } from "./billing.helpers.js";
+import { adminToken, app, reader } from "./billing.helpers.js";
 
 // One live call per AI route, against the real model and database. The key's free tier allows only a few
 // requests a day, so these run only when asked: AI_LIVE=1 npx vitest run tests/ai-live.test.ts
@@ -21,8 +21,8 @@ describeLive("AI routes, live", () => {
     me = await reader(server, "ai");
   }, 60_000);
   afterAll(async () => {
+    // Only this file's reader: sweep() would delete other files' readers while they run
     await me?.cleanup();
-    await sweep();
   }, 60_000);
 
   const asTeam = (r: request.Test) => r.set("authorization", `Bearer ${admin}`);

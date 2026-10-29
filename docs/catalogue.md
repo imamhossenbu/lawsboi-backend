@@ -14,19 +14,19 @@ Blocks are the reader's own: `{ kind: "para" | "clause" | "tail", mark?, text, n
 | Route | Query / body | Returns |
 | --- | --- | --- |
 | `GET /catalogue/subjects` | | `{ subjects: [{ key, label: Text }], types: [{ key, label: Text }] }` |
-| `GET /catalogue/totals` | | `{ laws: { constitution, act, ordinance, po, amendments }, courts: { supreme, AD, HCD, district, tribunal } }` |
-| `GET /catalogue/laws` | `q`, `field=all\|title\|actNo\|year`, `types=act,ordinance`, `statuses=in-force,repealed`, `yearFrom`, `yearTo`, `subject`, `letter` (A–Z or a Bangla letter), `sort=popular\|newest\|oldest\|az\|za`, `page`, `perPage` (≤200, or `all` for the whole catalogue) | `{ laws: LawRecord[], total, page, perPage }` |
+| `GET /catalogue/totals` | | `{ laws: { constitution, act, ordinance, po, amendments }, courts: { supreme, AD, HCD, district, tribunal }, sections, rules, judgments }` |
+| `GET /catalogue/laws` | `q`, `field=all\|title\|actNo\|year`, `types=act,ordinance`, `statuses=in-force,repealed`, `yearFrom`, `yearTo`, `subject`, `letter` (A–Z or a Bangla letter), `sort=popular\|newest\|oldest\|az\|za`, `page`, `perPage` (or `all`), `fields=full|summary` (summary leaves out longTitle, preamble, date, updatedAt) (≤200, or `all` for the whole catalogue) | `{ laws: LawRecord[], total, page, perPage }` |
 | `GET /catalogue/laws/search` | `q`, `limit` (≤500) | `{ hits: LawHit[] }` — provisions ranked in Postgres; a query naming a provision ("section 151", "o.39 r.1", "১৪৪") goes straight to it; matching laws come first as `kind: "act"` |
 | `GET /catalogue/laws/:slug` | | `{ law: LawRecord, parts: [{ id, title: Text, range, banner, sub, sections: [{ n, title: Text }] }], orders: [{ n, roman, title: Text, ruleCount }], translated }` |
 | `GET /catalogue/laws/:slug/text` | | `{ text: ActText }` — every part and section with body, footnotes and translation, for the reading view |
 | `GET /catalogue/laws/:slug/sections/:n` | | `{ section: SectionView }` — body, explanation, translation `{ title, body[], footnotes[] }`, footnotes, amendments, related, prev/next |
 | `GET /catalogue/laws/:slug/orders/:n` | | `{ order: { n, roman, title: Text, rules: [{ n, title: Text, body, translation }], prev, next } }` |
 | `GET /catalogue/laws/:slug/cases` | | `{ cases: RelatedCase[] }` — judgments citing the law, newest first, with `provision` and `refs` |
-| `GET /catalogue/cases` | `q`, `field=all\|title\|citation\|judge\|law`, `courts=AD,HCD`, `types=civil,…`, `yearFrom`, `yearTo`, `law` (slug or title words), `sort=latest\|oldest\|az\|za`, `page`, `perPage` | `{ cases: CaseSummary[], total, page, perPage }` |
+| `GET /catalogue/cases` | `q`, `field=all\|title\|citation\|judge\|law`, `courts=AD,HCD`, `types=civil,…`, `yearFrom`, `yearTo`, `law` (slug or title words), `sort=latest\|oldest\|az\|za`, `page`, `perPage` (or `all`, up to 1,000) | `{ cases: CaseSummary[], total, page, perPage }` |
 | `GET /catalogue/cases/latest` | `limit` | `{ cases: CaseSummary[] }` — newest with a known date |
 | `GET /catalogue/cases/:slug` | | `{ case: CaseDetail }` — text (paragraphs), translation, parties, advocates, citations, `laws` with titles, related, prev/next |
 | `GET /catalogue/home` | | `{ laws: LawRecord[6], cases: CaseSummary[5], sections: [{ href, law, n, label: Text, title: Text, lawTitle: Text, views: { month, week } }] }` |
-| `POST /catalogue/reads` | `{ kind: law\|section\|order\|judgment, slug, n? }` (optional reader token) | `202` — counts towards "most viewed" and the home page's trends |
+| `POST /catalogue/reads` | `{ kind: law\|section\|order\|judgment, slug, n? }` (optional reader token) | `202 { ok, counted }` — counts towards "most viewed" and the home page's trends; the same reader (or address) on the same page within 30 minutes isn't counted again |
 
 ### Shapes
 

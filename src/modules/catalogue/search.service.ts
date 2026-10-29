@@ -138,14 +138,28 @@ async function actHits(tsq: string, limit: number): Promise<LawHit[]> {
   });
 }
 
-/** The best-matching laws and provisions for one query, best first. */
-export async function searchLaws(query: string, limit = 300): Promise<LawHit[]> {
+// Words that only say what kind of provision a number is ("section 144"): searching for them as text would match
+// nearly every section and push the numbered ones out
+const PROVISION_WORDS = new Set(["section", "sections", "sec", "s", "article", "art", "order", "rule", "o", "r", "ধারা", "অনুচ্ছেদ", "আদেশ", "বিধি"]);
+
+// The text search fetches at least this many rows before the final sort, so a short `limit` can't drop the best
+// match before the number boost and popularity have been applied
+const MIN_CANDIDATES = 200;
+
+/** The best-matching laws and provisions for one query, best first. `anyWords` matches any of the words (for a
+ * model-written list of search terms) instead of all of them, and ignores numbers; `words` replaces the query's
+ * own words (the assistant passes a question's words without "what", "how"…). */
+export async function searchLaws(query: string, limit = 300, options: { anyWords?: boolean; words?: string[] } = {}): Promise<LawHit[]> {
   if (query.trim().length < 2) return [];
-  const { numbers, words } = parseQuery(query);
-  const tsq = toTsQuery(words);
-  const rows: ProvisionRow[] = tsq ? unwrap(await db.rpc("search_provisions", { tsq, max_rows: limit })) : [];
-  // A named number with no words: the provisions carrying that number, not every text mentioning it
-  const numbered = numbers.length && !tsq ? await provisionsNumbered(numbers, limit) : [];
+  const parsedQuery = parseQuery(query);
+  const numbers = options.anyWords ? [] : parsedQuery.numbers;
+  const queryWords = options.words ?? parsedQuery.words;
+  const words = numbers.length ? queryWords.filter((w) => !PROVISION_WORDS.has(w)) : queryWords;
+  const all_ = toTsQuery(words);
+  const tsq = options.anyWords ? (all_?.replace(/ & /g, " | ") ?? null) : all_;
+  const rows: ProvisionRow[] = tsq ? unwrap(await db.rpc("search_provisions", { tsq, max_rows: Math.max(limit, MIN_CANDIDATES) })) : [];
+  // A named number: the provisions carrying that number, not every text mentioning it
+  const numbered = numbers.length ? await provisionsNumbered(numbers, Math.max(limit, MIN_CANDIDATES)) : [];
   const all = [...numbered, ...rows];
   const heads = await lawHeads([...new Set(all.map((r) => r.law_slug))]);
   const hits = all.flatMap((r) => {

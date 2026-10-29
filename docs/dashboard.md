@@ -17,6 +17,6 @@
     revenue: { current, previous } | null,
     tickets: { current, previous, attention, previousAttention },  // open now vs end of last month; high/urgent
   },
-  recent: { users: AdminUser[5], payments: (Payment & { user })[5], tickets: [{ id, subject, category, priority, status, assignee, user, createdAt, updatedAt }][5] },
+  recent: { users: AdminUser[5], payments: (Payment & { user })[5], tickets: [{ id, subject, lang, category, priority, status, assignee, user, createdAt, updatedAt, resolvedAt }][5] },
 }
 ```

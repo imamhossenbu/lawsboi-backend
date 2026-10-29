@@ -15,9 +15,13 @@ monthly allowance; months run on Bangladesh time.
 | Route | Auth | Body / query | Returns |
 | --- | --- | --- | --- |
 | `POST /assistant/preview` | none (20 an hour per address) | `{ question, scope?: all\|laws\|cases, lang? }` | `{ answer: Answer }` — for the landing page; not logged |
-| `POST /assistant/ask` | reader | same | `201 { id, at, answer: Answer, usage }`; `403 { details: { allowance: "exhausted" } }` when the month's questions are used up |
+| `POST /assistant/ask` | reader | same, plus `conversationId?` (a follow-up in that chat) | `201 { id, conversationId, at, answer: Answer, usage }`; `403 { details: { allowance: "exhausted" } }` when the month's questions are used up; `404` for someone else's chat. A follow-up's model input carries the chat's last three questions and answers, and a short follow-up that finds little is searched together with the previous question |
 | `GET /assistant/usage` | reader | | `{ usage: { used, limit: number \| null, resetsAt } }` |
-| `GET /assistant/history` | reader | `page`, `perPage` | `{ questions: [{ id, question, lang, scope, answer, at }], total, … }` |
+| `GET /assistant/history` | reader | `page`, `perPage`, `conversationId?`, `saved=true\|false` | `{ questions: [{ id, conversationId, question, lang, scope, answer, saved, at }], total, … }` |
+| `GET /assistant/conversations` | reader | `page`, `perPage` | `{ conversations: [{ id, title /* the first question */, lang, count, saved, startedAt, lastAt }], total, … }`, latest activity first |
+| `POST /assistant/history/:id/save` | reader | `{ saved?: boolean }` (default true); `id` is a chat (or a question) | `{ conversationId, saved }` |
+| `DELETE /assistant/history/:id` | reader | | `204` — erases the chat's questions and answers. The rows stay, emptied, because the month's allowance counts every question asked |
+| `DELETE /assistant/history` | reader | | `204` — the same for every chat (the Danger zone's "clear history") |
 
 ```ts
 Answer = { query, scope, laws: SourceHit[], cases: SourceHit[],

@@ -60,8 +60,11 @@ async function queryEntries(q: z.infer<typeof listQuery>, team: Map<string, { id
   if (q.from) query = query.gte("at", q.from);
   if (q.to) query = query.lt("at", q.to);
   if (q.q) {
-    const term = q.q.replace(/[%_,]/g, " ");
-    query = query.or(`target_id.ilike.%${term}%,target_label->>en.ilike.%${term}%,target_label->>bn.ilike.%${term}%,action.ilike.%${term}%`);
+    const term = q.q.replace(/[%_,()]/g, " ");
+    // The search also finds what a team member did, by their name in either language or their email
+    const { data: people } = await db.from("team_members").select("id").or(`name.ilike.%${term}%,name_bn.ilike.%${term}%,email.ilike.%${term}%`).limit(50);
+    const byActor = (people ?? []).length ? `,actor_id.in.(${people!.map((p) => p.id).join(",")})` : "";
+    query = query.or(`target_id.ilike.%${term}%,target_label->>en.ilike.%${term}%,target_label->>bn.ilike.%${term}%,action.ilike.%${term}%${byActor}`);
   }
   const from = (q.page - 1) * q.perPage;
   const { data, count } = await query.range(from, from + q.perPage - 1);

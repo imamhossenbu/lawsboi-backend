@@ -28,7 +28,7 @@ AdminUser = { id: "USR-10047", name: {en,bn}, email, plan, cycle, role: "reader"
 
 | Method | Path | Permission | Body / query | Returns |
 | --- | --- | --- | --- | --- |
-| GET | `/admin/billing/plans` | plans.view | | `{ plans: Plan[] (all, with counts), recurringRevenue, stats: { paidSubscribers, previousActive, renewals: { current, previous } } }` |
+| GET | `/admin/billing/plans` | plans.view | | `{ plans: Plan[] (all, with counts), recurringRevenue, previousRecurringRevenue /* subscriptions running at the end of last month, at what they paid; yearly as a twelfth */, stats: { paidSubscribers, previousActive, renewals: { current, previous } } }` |
 | POST | `/admin/billing/plans` | plans.create | `{ id?, name:{en,bn}, description:{en,bn}, price:{monthly, yearly|null}, features:[{en,bn}], icon?, active? }` | 201 `{ plan }`; 409 id taken |
 | PATCH | `/admin/billing/plans/:id` | plans.edit | any of the above | `{ plan }` |
 | POST | `/admin/billing/plans/:id/activate` `…/deactivate` `…/default` `…/duplicate` | plans.activate | | `{ plan }` (duplicate: 201, inactive copy). 400 when deactivating the default or making an inactive plan default |
@@ -36,7 +36,7 @@ AdminUser = { id: "USR-10047", name: {en,bn}, email, plan, cycle, role: "reader"
 | GET | `/admin/billing/subscriptions` | plans.view | `q, plan, status, cycle, page, perPage` | `{ subscriptions: (Subscription & { user: AdminUser })[], page, perPage, total }` |
 | GET | `/admin/billing/subscriptions/:id` | plans.view | | `{ subscription: Subscription & { user, payments: Payment[] } }` |
 | PATCH | `/admin/billing/subscriptions/:id` | plans.renewals | `{ autoRenew }` | `{ subscription }` (audits `subscription.renewOn/Off`) |
-| GET | `/admin/billing/payments` | payments.view | `q` (name, email, id, trx), `plan, method, status, month: "YYYY-MM", page, perPage` | `{ payments: (Payment & { user })[], page, perPage, total }` |
+| GET | `/admin/billing/payments` | payments.view | `q` (name, email, id, trx), `plan, method, status, month: "YYYY-MM"` or a range `from`/`to: "YYYY-MM"` (both included)`, page, perPage` | `{ payments: (Payment & { user })[], page, perPage, total }` |
 | GET | `/admin/billing/payments/figures` | payments.view | `month?` | `{ month, status: { verified|awaiting|rejected|refunded: { count, amount } }, byMethod: { bkash: { [plan]: {count, amount} }, nagad: {...} }, lastMonth: { verified (count), refunds (amount) }, chart: { months[12], byPlan: { [plan]: number[12] }, refunds: number[12] } }` |
 | GET | `/admin/billing/payments/export` | payments.export | same filters | CSV download (audits `payment.export`) |
 | GET | `/admin/billing/payments/:id` | payments.view | | `{ payment: Payment & { user } }` |

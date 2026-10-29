@@ -83,14 +83,14 @@ isOneToOne: false
                   ]
                 },"assistant_questions": {
                   Row: {
-                    "answer": Json | null,"created_at": string,"flagged": boolean,"id": string,"lang": Database["public"]['Enums']["lang"],"question": string,"scope": string,"user_id": string | null
+                    "answer": Json | null,"conversation_id": string,"created_at": string,"deleted_at": string | null,"flagged": boolean,"id": string,"lang": Database["public"]['Enums']["lang"],"question": string,"saved": boolean,"scope": string,"user_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question": string,"scope"?: string,"user_id"?: string | null
+                    "answer"?: Json | null,"conversation_id"?: string,"created_at"?: string,"deleted_at"?: string | null,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question": string,"saved"?: boolean,"scope"?: string,"user_id"?: string | null
                   }
                   Update: {
-                    "answer"?: Json | null,"created_at"?: string,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question"?: string,"scope"?: string,"user_id"?: string | null
+                    "answer"?: Json | null,"conversation_id"?: string,"created_at"?: string,"deleted_at"?: string | null,"flagged"?: boolean,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"question"?: string,"saved"?: boolean,"scope"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -265,6 +265,20 @@ isOneToOne: false
                   }
                   Update: {
                     "access"?: NonNullable<Json>,"allowance"?: Json | null,"enabled"?: boolean,"group"?: string,"id"?: string,"pages"?: (string)[],"per"?: string | null,"reader_today"?: string,"rollout"?: number | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"health_runs": {
+                  Row: {
+                    "at": string,"checks": NonNullable<Json>,"id": string,"overall": string,"source": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"checks": NonNullable<Json>,"id"?: string,"overall": string,"source"?: string
+                  }
+                  Update: {
+                    "at"?: string,"checks"?: NonNullable<Json>,"id"?: string,"overall"?: string,"source"?: string
                   }
                   Relationships: [
                     

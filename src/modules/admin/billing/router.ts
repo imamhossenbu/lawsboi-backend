@@ -41,12 +41,23 @@ async function usersById(ids: string[]) {
 
 /* ----------------------------------------------------------------- plans */
 
+/** Monthly recurring revenue at the end of last month: the subscriptions running then, at what they paid
+ * (yearly ones as a twelfth), for the Recurring revenue card's trend. Months are Bangladesh time. */
+async function recurringRevenueLastMonth() {
+  const now = new Date(Date.now() + 6 * 3_600_000);
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 6 * 3_600_000).toISOString();
+  const { data, error } = await db.from("subscriptions").select("amount,cycle,canceled_at").lt("started_at", monthStart).or(`canceled_at.is.null,canceled_at.gte.${monthStart}`).limit(50_000);
+  if (error) throw new Error(`Database: ${error.message}`);
+  return Math.round((data ?? []).reduce((sum, s) => sum + (s.cycle === "yearly" ? s.amount / 12 : s.amount), 0));
+}
+
 adminBillingRouter.get("/plans", requirePermission("plans.view"), async (_req, res) => {
-  const [plans, figures] = await Promise.all([listPlans(false), db.rpc("subscription_figures").single()]);
+  const [plans, figures, previousRecurringRevenue] = await Promise.all([listPlans(false), db.rpc("subscription_figures").single(), recurringRevenueLastMonth()]);
   const f = figures.data;
   res.json({
     plans,
     recurringRevenue: recurringRevenue(plans.map((p) => ({ price_monthly: p.price.monthly, price_yearly: p.price.yearly, subscribers: p.subscribers, yearlySubscribers: p.yearlySubscribers }))),
+    previousRecurringRevenue,
     stats: {
       paidSubscribers: plans.filter((p) => p.price.monthly > 0 || p.price.yearly).reduce((n, p) => n + p.subscribers, 0),
       previousActive: Number(f?.prev_active ?? 0),
@@ -225,6 +236,9 @@ const paymentsQuery = z.object({
   status: z.enum(paymentStatuses).optional(),
   /** "YYYY-MM" in Bangladesh time; omitted means every month */
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  /** A range of months, both ends included ("2026-05" to "2026-10"), for the page's 3/6/12-month menu */
+  from: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(500).default(20),
 });
@@ -246,6 +260,8 @@ async function queryPayments(q: z.infer<typeof paymentsQuery>) {
     const { start, end } = monthRange(q.month);
     query = query.gte("submitted_at", start).lt("submitted_at", end);
   }
+  if (q.from) query = query.gte("submitted_at", monthRange(q.from).start);
+  if (q.to) query = query.lt("submitted_at", monthRange(q.to).end);
   if (q.q) {
     const term = q.q.replace(/[%_,]/g, " ");
     const matches = await db.from("profiles").select("id").or(`name.ilike.%${term}%,email.ilike.%${term}%`).limit(200);

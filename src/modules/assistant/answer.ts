@@ -62,15 +62,42 @@ async function searchTerms(question: string, caller: Caller) {
 
 const hitCount = (r: Retrieved) => r.answer.laws.length + r.answer.cases.length;
 
-/** The search, and when it finds little (or the question is Bangla) a second search in the law's English terms.
- * The answer keeps the reader's own question; whichever search found more supplies the sources. */
+/** Takes turns from two ranked lists (with their refs), skipping repeats, up to `max`. */
+export function interleave<T extends { id: string }, R>(a: { hits: T[]; refs: R[] }, b: { hits: T[]; refs: R[] }, max: number) {
+  const hits: T[] = [];
+  const refs: R[] = [];
+  for (let i = 0; hits.length < max && (i < a.hits.length || i < b.hits.length); i++) {
+    for (const side of [a, b]) {
+      const hit = side.hits[i];
+      if (hit && hits.length < max && !hits.some((h) => h.id === hit.id)) {
+        hits.push(hit);
+        refs.push(side.refs[i]!);
+      }
+    }
+  }
+  return { hits, refs };
+}
+
+const split = (r: Retrieved) => ({ laws: { hits: r.answer.laws, refs: r.refs.slice(0, r.answer.laws.length) }, cases: { hits: r.answer.cases, refs: r.refs.slice(r.answer.laws.length) } });
+
+/** The search, and a second one in the law's English terms when the question is in Bangla (most of the catalogue,
+ * and every judgment, is English, but 750 laws are Bangla) or an English question found little. A Bangla question
+ * gets both searches' sources, taking turns; otherwise the search that found more wins. The answer keeps the
+ * reader's own question. */
 export async function retrieveForAnswer(question: string, scope: Scope, lang: Lang, caller: Caller): Promise<Retrieved> {
   const first = await retrieve(question, scope);
-  if (!aiConfigured() || (hitCount(first) >= 3 && languageOf(question, lang) === "en")) return first;
+  const bangla = languageOf(question, lang) === "bn";
+  if (!aiConfigured() || (!bangla && hitCount(first) >= 3)) return first;
   try {
     const terms = await searchTerms(question, caller);
     if (!terms) return first;
     const second = await retrieve(terms, scope, { anyWords: true });
+    if (bangla) {
+      const [s, f] = [split(second), split(first)];
+      const laws = interleave(s.laws, f.laws, 5);
+      const cases = interleave(s.cases, f.cases, 3);
+      return { answer: { query: question, scope, laws: laws.hits, cases: cases.hits }, refs: [...laws.refs, ...cases.refs] };
+    }
     if (hitCount(second) <= hitCount(first)) return first;
     return { answer: { ...second.answer, query: question }, refs: second.refs };
   } catch {
@@ -98,13 +125,23 @@ export function systemInstruction(lang: Lang, short: boolean) {
   ].join("\n");
 }
 
-/** The model's input: the question, then each source numbered with where it's from and its text. */
-export function buildPrompt(question: string, sources: Grounding[]) {
+/** An earlier question in the same chat and what was answered, so a follow-up can lean on it. */
+export interface Turn {
+  question: string;
+  answer: string | null;
+}
+
+/** The model's input: the chat so far (when there is one), the question, then each source numbered with where
+ * it's from and its text. */
+export function buildPrompt(question: string, sources: Grounding[], earlier: Turn[] = []) {
   const blocks = sources.map((s, i) => {
     const where = s.hit.kind === "law" ? `${s.hit.label.en}, ${s.hit.context.en}` : `${s.hit.title.en}, ${s.hit.label.en} (${s.hit.context.en})`;
     return `[${i + 1}] ${where}\n${s.text.slice(0, MAX_SOURCE_CHARS)}`;
   });
-  return `Question: ${question}\n\nSources:\n\n${blocks.join("\n\n")}`;
+  const chat = earlier.length
+    ? `Earlier in this conversation (for context only; cite only the numbered sources below):\n${earlier.map((t) => `Q: ${t.question}\nA: ${(t.answer ?? "(no answer)").slice(0, 1200)}`).join("\n\n")}\n\n`
+    : "";
+  return `${chat}Question: ${question}\n\nSources:\n\n${blocks.join("\n\n")}`;
 }
 
 /** The [n] markers in the text that point at real sources, in order of first use. Bangla digits count too. */
@@ -152,7 +189,7 @@ export async function groundingOf(retrieved: Retrieved): Promise<Grounding[]> {
 const citationOf = (hit: SourceHit, index: number): Citation => ({ index, kind: hit.kind, id: hit.id, title: hit.title, label: hit.label, href: hit.href });
 
 /** The written answer for a question and its sources. Never throws: a failure comes back as text: null + reason. */
-export async function writeAnswer(question: string, siteLang: Lang, retrieved: Retrieved, options: { short?: boolean; caller: Caller }): Promise<Written> {
+export async function writeAnswer(question: string, siteLang: Lang, retrieved: Retrieved, options: { short?: boolean; caller: Caller; earlier?: Turn[] }): Promise<Written> {
   const lang = languageOf(question, siteLang);
   const sources = await groundingOf(retrieved).catch(() => [] as Grounding[]);
   if (!sources.length) return { text: null, citations: [], lang, model: null, reason: "no_sources" };
@@ -162,7 +199,7 @@ export async function writeAnswer(question: string, siteLang: Lang, retrieved: R
       generate({
         purpose: options.short ? "assistant.preview" : "assistant.answer",
         system: systemInstruction(lang, !!options.short),
-        input: buildPrompt(question, sources),
+        input: buildPrompt(question, sources, options.earlier),
         // Thinking tokens count against the cap, so it is set well above the answer's own length
         maxOutputTokens: options.short ? 2_000 : 6_000,
         thinking: options.short ? "minimal" : "low",

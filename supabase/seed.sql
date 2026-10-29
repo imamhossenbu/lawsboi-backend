@@ -22,8 +22,17 @@ on conflict (method) do nothing;
 insert into public.site_settings (key, value)
 values
   ('assistant_limits', '{"free": 5, "researcher": 30, "professional": null}'),
-  ('contact', '{"email": "support@lawsboi.com", "phone": "", "whatsapp": "", "replyTime": {"en": "We usually reply within 24 hours.", "bn": "সাধারণত ২৪ ঘণ্টার মধ্যে উত্তর দিই।"}, "hours": {"en": "", "bn": ""}, "office": {"en": "", "bn": ""}, "officeNote": {"en": "", "bn": ""}}')
+  ('contact', '{"email": "support@lawsboi.com", "phone": "", "whatsapp": "", "replyTime": {"en": "We usually reply within 24 hours.", "bn": "সাধারণত ২৪ ঘণ্টার মধ্যে উত্তর দিই।"}, "hours": {"en": "Sun – Thu, 10:00 AM – 6:00 PM (BST)", "bn": "রবি – বৃহস্পতি, সকাল ১০টা – সন্ধ্যা ৬টা"}, "office": {"en": "Dhaka, Bangladesh", "bn": "ঢাকা, বাংলাদেশ"}, "officeNote": {"en": "Full address available on request", "bn": "পূর্ণ ঠিকানা অনুরোধে জানানো হয়"}}')
 on conflict (key) do nothing;
+
+-- The contact page's own text, for a contact row seeded before these fields had it. Empty fields only: the team's
+-- edits stay.
+update public.site_settings
+set value = value
+  || case when coalesce(value -> 'hours' ->> 'en', '') = '' then jsonb_build_object('hours', jsonb_build_object('en', 'Sun – Thu, 10:00 AM – 6:00 PM (BST)', 'bn', 'রবি – বৃহস্পতি, সকাল ১০টা – সন্ধ্যা ৬টা')) else '{}'::jsonb end
+  || case when coalesce(value -> 'office' ->> 'en', '') = '' then jsonb_build_object('office', jsonb_build_object('en', 'Dhaka, Bangladesh', 'bn', 'ঢাকা, বাংলাদেশ')) else '{}'::jsonb end
+  || case when coalesce(value -> 'officeNote' ->> 'en', '') = '' then jsonb_build_object('officeNote', jsonb_build_object('en', 'Full address available on request', 'bn', 'পূর্ণ ঠিকানা অনুরোধে জানানো হয়')) else '{}'::jsonb end
+where key = 'contact';
 
 insert into public.site_pages (slug, path, fixed) values ('privacy', '/privacy', false), ('disclaimer', '/disclaimer', false), ('about', '/about', true)
 on conflict (slug) do nothing;

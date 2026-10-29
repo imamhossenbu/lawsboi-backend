@@ -20,8 +20,21 @@ catalogueRouter.get("/subjects", (_req, res) => {
 });
 
 catalogueRouter.get("/totals", async (_req, res) => {
-  const [laws, courts] = await Promise.all([catalogueTotals(), courtTotals()]);
-  res.json({ laws, courts });
+  const count = async (q: PromiseLike<{ count: number | null; error: { message: string } | null }>) => {
+    const { count: n, error } = await q;
+    if (error) throw new Error(`Database: ${error.message}`);
+    return n ?? 0;
+  };
+  const head = { count: "exact", head: true } as const;
+  const [laws, courts, sections, rules, judgments] = await Promise.all([
+    catalogueTotals(),
+    courtTotals(),
+    count(db.from("law_sections").select("id", head)),
+    count(db.from("law_rules").select("id", head)),
+    count(db.from("judgments").select("slug", head).eq("published", true)),
+  ]);
+  // sections, rules and judgments are what the About page counts
+  res.json({ laws, courts, sections, rules, judgments });
 });
 
 /* ------------------------------------------------------------------- laws */
@@ -41,6 +54,10 @@ catalogueRouter.get("/laws", validate("query", lawsQuery), async (req, res) => {
     page: q.perPage === "all" ? 1 : q.page,
     perPage: q.perPage === "all" ? 2000 : q.perPage,
   });
+  if (q.fields === "summary") {
+    res.json({ ...result, laws: result.laws.map(({ longTitle: _l, preamble: _p, date: _d, updatedAt: _u, ...rest }) => rest) });
+    return;
+  }
   res.json(result);
 });
 
@@ -77,7 +94,7 @@ catalogueRouter.get("/laws/:slug/orders/:n", validate("params", provisionParam),
 
 catalogueRouter.get("/cases", validate("query", casesQuery), async (req, res) => {
   const q = parsed<z.infer<typeof casesQuery>>(req, "query");
-  res.json(await listCases({ query: q.q, field: q.field, courts: q.courts, types: q.types, yearFrom: q.yearFrom, yearTo: q.yearTo, law: q.law, sort: q.sort, page: q.page, perPage: q.perPage }));
+  res.json(await listCases({ query: q.q, field: q.field, courts: q.courts, types: q.types, yearFrom: q.yearFrom, yearTo: q.yearTo, law: q.law, sort: q.sort, page: q.perPage === "all" ? 1 : q.page, perPage: q.perPage === "all" ? 1000 : q.perPage }));
 });
 
 catalogueRouter.get("/cases/latest", validate("query", latestQuery), async (req, res) => {
@@ -140,12 +157,32 @@ catalogueRouter.get("/home", async (_req, res) => {
 
 const reads = rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false });
 
+// One read per viewer and page every half hour, so reloads don't move "most viewed" or the week's figures.
+// Kept in this process's memory: a restart or a second instance may count one extra read, which is harmless.
+const READ_WINDOW_MS = 30 * 60 * 1000;
+const recentReads = new Map<string, number>();
+
+/** Whether this viewer already read this page in the window; records it when not. */
+export function seenRecently(key: string, now = Date.now()) {
+  const last = recentReads.get(key);
+  if (last !== undefined && now - last < READ_WINDOW_MS) return true;
+  recentReads.set(key, now);
+  // Forget old entries now and then so the map stays small
+  if (recentReads.size > 50_000) for (const [k, t] of recentReads) if (now - t >= READ_WINDOW_MS) recentReads.delete(k);
+  return false;
+}
+
 /** A reader opened a law, section, Order or judgment. Counts towards "most viewed"; who read it is kept only when
- * the request carries a token. */
+ * the request carries a token. Repeats within half an hour from the same reader (or address) aren't counted. */
 catalogueRouter.post("/reads", reads, validate("body", readSchema), async (req, res) => {
   const b = req.body as z.infer<typeof readSchema>;
   const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : null;
   const user = token ? (await db.auth.getUser(token)).data.user?.id ?? null : null;
+  const viewer = user ?? `ip:${req.ip ?? "unknown"}`;
+  if (seenRecently(`${viewer}|${b.kind}|${b.slug}|${b.n ?? ""}`)) {
+    res.status(202).json({ ok: true, counted: false });
+    return;
+  }
   await db.from("catalogue_reads").insert({ kind: b.kind, slug: b.slug, n: b.n ?? null, user_id: user });
-  res.status(202).json({ ok: true });
+  res.status(202).json({ ok: true, counted: true });
 });

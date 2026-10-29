@@ -33,6 +33,8 @@ export const lawsQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   // "all" (up to 2,000) lets the reader's search page start from the whole catalogue
   perPage: z.union([z.literal("all"), z.coerce.number().int().min(1).max(200)]).default(24),
+  // "summary" leaves out the long title, preamble and dates the browse pages don't show (a third of the bytes)
+  fields: z.enum(["full", "summary"]).default("full"),
 });
 
 export const casesQuery = z.object({
@@ -45,7 +47,8 @@ export const casesQuery = z.object({
   law: z.string().trim().max(200).optional(),
   sort: z.enum(["latest", "oldest", "az", "za"]).default("latest"),
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(1).max(200).default(24),
+  // "all" (up to 1,000) for pages that filter the whole list in the browser, as laws allow
+  perPage: z.union([z.literal("all"), z.coerce.number().int().min(1).max(200)]).default(24),
 });
 
 export const searchQuery = z.object({

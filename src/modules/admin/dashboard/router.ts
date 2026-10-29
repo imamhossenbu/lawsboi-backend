@@ -59,6 +59,7 @@ adminDashboardRouter.get("/", validate("query", z.object({ months: z.coerce.numb
       tickets: unwrap(recentTickets).map((t) => ({
         id: t.public_id,
         subject: t.subject,
+        lang: t.lang,
         category: t.category,
         priority: t.priority,
         status: t.status,
@@ -66,6 +67,7 @@ adminDashboardRouter.get("/", validate("query", z.object({ months: z.coerce.numb
         user: payers.get(t.user_id) ? adminUserOf(payers.get(t.user_id)!) : null,
         createdAt: t.created_at,
         updatedAt: t.updated_at,
+        resolvedAt: t.resolved_at,
       })),
     },
   });

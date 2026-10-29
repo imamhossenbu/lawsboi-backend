@@ -1,6 +1,7 @@
 import { HttpError, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { summariesOf } from "../catalogue/cases.service.js";
+import { searchLaws } from "../catalogue/search.service.js";
 import { clip, courtLabel, latinDigits, normalize, orderLabel, parseQuery, ruleLabel, sectionLabel, text, toTsQuery, type Text } from "../catalogue/shared.js";
 
 // The assistant's retrieval: the provisions and judgments that best match the question, found by Postgres full-text
@@ -87,44 +88,35 @@ export async function retrieve(question: string, scope: Scope, options: { anyWor
   // Section numbers only count when the reader typed them, not in a model's list of terms
   const numbers = options.anyWords ? [] : parseQuery(question).numbers;
   const tsq = options.anyWords ? anyWordsQuery(words) : toTsQuery(words);
-  // Ranks of any-word matches run lower, so only the relative cut-off applies to them
-  const floor = options.anyWords ? 0 : 0.3;
   const out: Answer = { query: question, scope, laws: [], cases: [] };
   const lawRefs: SourceRef[] = [];
   const caseRefs: SourceRef[] = [];
   if (!tsq && !numbers.length) return { answer: out, refs: [] };
 
   if (scope !== "cases") {
-    const rows = tsq ? unwrap(await db.rpc("search_provisions", { tsq, max_rows: 30 })) : [];
-    const numbered = numbers.length ? unwrap(await db.from("law_sections").select("law_slug,n,title,title_tr,body,translation,sort_order").in("n", numbers.filter((n) => !n.includes("."))).limit(20)) : [];
-    const slugs = [...new Set([...rows.map((r) => r.law_slug), ...numbered.map((r) => r.law_slug)])];
-    const laws = slugs.length ? unwrap(await db.from("laws").select("slug,title,title_bn,unit,views").in("slug", slugs).eq("published", true)) : [];
-    const lawBy = new Map(laws.map((l) => [l.slug, l]));
-    const scored = [
-      ...numbered.map((s) => {
-        const body = Array.isArray(s.body) ? (s.body as { text: string }[]).map((b) => b.text).join(" ") : "";
-        const tr = (s.translation as { b?: string[] } | null)?.b?.join(" ") ?? null;
-        return { kind: "section", law_slug: s.law_slug, n: s.n, order_n: null as string | null, roman: null as string | null, title: s.title, title_tr: s.title_tr, snippet: body, snippet_tr: tr, score: 25 + Number(lawBy.get(s.law_slug)?.views ?? 0) / 1e6 };
-      }),
-      ...rows.map((r) => ({ ...r, score: r.rank * 10 + (numbers.includes(r.n.toLowerCase()) ? 25 : 0) })),
-    ].sort((a, b) => b.score - a.score);
-    const top = scored[0]?.score ?? 0;
-    out.laws = scored
-      .filter((r) => r.score >= Math.max(floor, top * 0.35) && lawBy.has(r.law_slug))
+    // The same search and ranking as the dashboard's law search, so the assistant cites what a reader would find
+    const isProvision = (h: { kind: string }) => h.kind === "section" || h.kind === "rule";
+    let hits = await searchLaws(question, 40, { anyWords: options.anyWords, words });
+    // A question carries words the statute doesn't ("inherent powers of a *civil* court"). When no provision holds
+    // them all, search again leaving out one word at a time and keep what most of those searches agree on; only
+    // then any of the words (Postgres ranks those without regard to how rare a word is, so that comes last)
+    if (!options.anyWords && words.length > 2 && !hits.some(isProvision)) hits = await leaveOneOut(question, words.slice(0, 6));
+    if (!options.anyWords && words.length > 1 && !hits.some(isProvision)) hits = await searchLaws(question, 40, { anyWords: true, words });
+    out.laws = hits
+      .filter((h) => h.kind === "section" || h.kind === "rule")
       .slice(0, 4)
-      .map((r) => {
-        lawRefs.push(r.kind === "rule" ? { kind: "rule", lawSlug: r.law_slug, orderN: r.order_n!, n: r.n } : { kind: "section", lawSlug: r.law_slug, n: r.n });
-        const law = lawBy.get(r.law_slug)!;
-        const unit = law.unit as "sections" | "articles";
-        const label = r.kind === "rule" ? joinLabel(orderLabel(r.roman!, r.order_n!), ruleLabel(r.n)) : sectionLabel(r.n, unit);
+      .map((h) => {
+        lawRefs.push(h.kind === "rule" ? { kind: "rule", lawSlug: h.slug, orderN: h.orderN!, n: h.n! } : { kind: "section", lawSlug: h.slug, n: h.n! });
+        const unit = h.heading.en.startsWith("Article") ? "articles" : "sections";
+        const label = h.kind === "rule" ? joinLabel(orderLabel(h.roman!, h.orderN!), ruleLabel(h.n!)) : sectionLabel(h.n!, unit);
         return {
           kind: "law" as const,
-          id: r.kind === "rule" ? `${r.law_slug}-o-${r.order_n}-${r.n}` : `${r.law_slug}-s-${r.n}`,
-          title: text(r.title, r.title_tr),
+          id: h.kind === "rule" ? `${h.slug}-o-${h.orderN}-${h.n}` : `${h.slug}-s-${h.n}`,
+          title: h.title,
           label,
-          context: text(law.title, law.title_bn),
-          snippet: { en: bestSentence(r.snippet, words), bn: bestSentence(r.snippet_tr || r.snippet, words) },
-          href: r.kind === "rule" ? `/bd/laws/${r.law_slug}/order-${r.order_n}#rule-${r.n}` : `/bd/laws/${r.law_slug}/section-${r.n}`,
+          context: h.lawTitle,
+          snippet: { en: bestSentence(h.snippet.en, words), bn: bestSentence(h.snippet.bn, words) },
+          href: h.kind === "rule" ? `/bd/laws/${h.slug}/order-${h.orderN}#rule-${h.n}` : `/bd/laws/${h.slug}/section-${h.n}`,
         };
       });
   }
@@ -157,6 +149,21 @@ export async function retrieve(question: string, scope: Scope, options: { anyWor
     }
   }
   return { answer: out, refs: [...lawRefs, ...caseRefs] };
+}
+
+/** Provisions found by the most leave-one-word-out searches, best first; ties keep the better search position. */
+async function leaveOneOut(question: string, words: string[]) {
+  const runs = await Promise.all(words.map((_, i) => searchLaws(question, 20, { words: words.filter((__, j) => j !== i) })));
+  const tally = new Map<string, { hit: Awaited<ReturnType<typeof searchLaws>>[number]; votes: number; best: number }>();
+  for (const run of runs) {
+    run.filter((h) => h.kind === "section" || h.kind === "rule").forEach((hit, position) => {
+      const t = tally.get(hit.id) ?? { hit, votes: 0, best: position };
+      t.votes++;
+      t.best = Math.min(t.best, position);
+      tally.set(hit.id, t);
+    });
+  }
+  return [...tally.values()].sort((a, b) => b.votes - a.votes || a.best - b.best).map((t) => t.hit);
 }
 
 const joinLabel = (a: Text, b: Text): Text => ({ en: `${a.en}, ${b.en}`, bn: `${a.bn}, ${b.bn}` });

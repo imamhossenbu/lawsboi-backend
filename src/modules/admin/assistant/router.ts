@@ -68,7 +68,8 @@ function questionOf(q: { id: string; question: string; lang: string; scope: stri
 
 adminAssistantRouter.get("/questions", validate("query", listQuery), async (req, res) => {
   const q = parsed<z.infer<typeof listQuery>>(req, "query");
-  let query = db.from("assistant_questions").select(QUESTION, { count: "exact" }).order("created_at", { ascending: false });
+  // Questions a reader deleted keep their row (the allowance counts it) but nothing to read
+  let query = db.from("assistant_questions").select(QUESTION, { count: "exact" }).is("deleted_at", null).order("created_at", { ascending: false });
   if (q.plan) query = query.eq("profiles.plan_id", q.plan);
   if (q.user) query = query.eq("profiles.public_id", q.user);
   if (q.lang) query = query.eq("lang", q.lang);
@@ -185,6 +186,8 @@ adminAssistantRouter.get("/stats", async (_req, res) => {
       readers.set(r.user_id, seen);
     }
     const key = r.question.trim().toLowerCase();
+    // Deleted by the reader: still counted above, but there's no question to list
+    if (!key) continue;
     const t = top.get(key) ?? { question: r.question, lang: r.lang, count: 0, latestId: r.id };
     t.count++;
     // Rows come oldest first, so the last one seen is the latest
