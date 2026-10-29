@@ -5,6 +5,7 @@ import { pinoHttp } from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
+import { adminAiRouter } from "./modules/admin/ai/router.js";
 import { adminAnnouncementsRouter } from "./modules/admin/announcements/router.js";
 import { adminAssistantRouter } from "./modules/admin/assistant/router.js";
 import { adminAuditRouter } from "./modules/admin/audit/router.js";
@@ -74,6 +75,7 @@ export function createApp() {
   app.use("/admin/content", adminContentRouter);
   app.use("/admin/announcements", adminAnnouncementsRouter);
   app.use("/admin/flags", adminFlagsRouter);
+  app.use("/admin/ai", adminAiRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
