@@ -8,11 +8,12 @@ import type { TablesInsert } from "../src/types/database.js";
 // Loads the reader site's catalogue into Supabase: every bdlaws act with its parts and sections, the CPC with its
 // Orders and Rules and unofficial Bangla translations, and every SCOB judgment with the provisions it cites.
 // Idempotent: laws and judgments are upserted by slug; their parts, sections, orders, rules and citations are
-// replaced. READER_DIR points at the reader site's checkout (default ../lawsboi).
+// replaced. The source files live in data/catalogue (bdlaws acts, the CPC, SCOB judgments), made by the parsers
+// in scripts/sources; CATALOGUE_DIR points elsewhere if needed.
 
-const READER = path.resolve(process.env.READER_DIR ?? new URL("../../lawsboi", import.meta.url).pathname);
-const LAWS = path.join(READER, "src/lib/laws/data");
-const CASES = path.join(READER, "src/lib/cases/data");
+const SOURCE = path.resolve(process.env.CATALOGUE_DIR ?? new URL("../data/catalogue", import.meta.url).pathname);
+const LAWS = path.join(SOURCE, "laws");
+const CASES = path.join(SOURCE, "cases");
 const BATCH = 400;
 
 // Postgres jsonb can't hold U+0000, which a few scanned judgments carry; it is dropped on the way in.
@@ -232,7 +233,7 @@ async function importJudgments() {
 /* ------------------------------------------------------------------ main */
 
 const started = Date.now();
-if (!readdirSync(LAWS).includes("bdlaws")) throw new Error(`No reader data at ${LAWS}; set READER_DIR.`);
+if (!readdirSync(LAWS).includes("bdlaws")) throw new Error(`No catalogue data at ${LAWS}; set CATALOGUE_DIR.`);
 // `--only=laws,cpc,judgments` limits a run (the bdlaws acts take a few minutes)
 const only = new Set((process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? "laws,cpc,judgments").split(","));
 const laws = only.has("laws") ? await importLaws() : "skipped";
