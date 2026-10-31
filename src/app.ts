@@ -27,6 +27,7 @@ import { catalogueRouter } from "./modules/catalogue/router.js";
 import { contentRouter } from "./modules/content/router.js";
 import { cronRouter } from "./modules/cron/router.js";
 import { libraryRouter } from "./modules/library/router.js";
+import { searchRouter } from "./modules/search/router.js";
 import { meRouter } from "./modules/me/router.js";
 import { supportRouter } from "./modules/support/router.js";
 
@@ -59,6 +60,7 @@ export function createApp() {
   app.use("/me", meRouter);
   app.use("/support", supportRouter);
   app.use("/catalogue", catalogueRouter);
+  app.use("/search", searchRouter);
   app.use("/assistant", assistantRouter);
   app.use("/billing", billingRouter);
   app.use("/library", libraryRouter);

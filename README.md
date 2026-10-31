@@ -67,6 +67,7 @@ route, its permission, body and response shape.
 | Audit log | `/admin/audit` | team (audit.*) | [audit.md](docs/audit.md) |
 | Wallets, contact details | `/admin/settings` | team (settings.*) | [settings.md](docs/settings.md) |
 | System health | `/admin/health` | team (health.*) | [health.md](docs/health.md) |
+| Global search (the reader site's top bar) | `GET /search?q=&limit=` | public | `{ q, laws, provisions, cases, articles }`, each `{ id, href, title: {en,bn}, meta: {en,bn} }[]` (best `limit`, default 5) |
 | Liveness | `GET /health` | public | `{ ok, time }` |
 | Scheduled work | `GET`/`POST /cron/tick` | `Authorization: Bearer <CRON_SECRET>` | see Hosting below |
 

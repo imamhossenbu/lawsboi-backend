@@ -149,7 +149,7 @@ const MIN_CANDIDATES = 200;
 /** The best-matching laws and provisions for one query, best first. `anyWords` matches any of the words (for a
  * model-written list of search terms) instead of all of them, and ignores numbers; `words` replaces the query's
  * own words (the assistant passes a question's words without "what", "how"…). */
-export async function searchLaws(query: string, limit = 300, options: { anyWords?: boolean; words?: string[] } = {}): Promise<LawHit[]> {
+export async function searchLaws(query: string, limit = 300, options: { anyWords?: boolean; words?: string[]; candidates?: number } = {}): Promise<LawHit[]> {
   if (query.trim().length < 2) return [];
   const parsedQuery = parseQuery(query);
   const numbers = options.anyWords ? [] : parsedQuery.numbers;
@@ -157,9 +157,15 @@ export async function searchLaws(query: string, limit = 300, options: { anyWords
   const words = numbers.length ? queryWords.filter((w) => !PROVISION_WORDS.has(w)) : queryWords;
   const all_ = toTsQuery(words);
   const tsq = options.anyWords ? (all_?.replace(/ & /g, " | ") ?? null) : all_;
-  const rows: ProvisionRow[] = tsq ? unwrap(await db.rpc("search_provisions", { tsq, max_rows: Math.max(limit, MIN_CANDIDATES) })) : [];
-  // A named number: the provisions carrying that number, not every text mentioning it
-  const numbered = numbers.length ? await provisionsNumbered(numbers, Math.max(limit, MIN_CANDIDATES)) : [];
+  // The global search's dropdown asks for fewer candidates: it shows a handful and has to answer while typing
+  const candidates = Math.max(limit, options.candidates ?? MIN_CANDIDATES);
+  // The text search, the numbered provisions and the matching laws don't depend on each other: one round trip
+  const [rows, numbered, acts] = await Promise.all([
+    tsq ? db.rpc("search_provisions", { tsq, max_rows: candidates }).then((r) => unwrap(r) as ProvisionRow[]) : Promise.resolve([] as ProvisionRow[]),
+    // A named number: the provisions carrying that number, not every text mentioning it
+    numbers.length ? provisionsNumbered(numbers, candidates) : Promise.resolve([] as ProvisionRow[]),
+    tsq ? actHits(tsq, 10) : Promise.resolve([] as LawHit[]),
+  ]);
   const all = [...numbered, ...rows];
   const heads = await lawHeads([...new Set(all.map((r) => r.law_slug))]);
   const hits = all.flatMap((r) => {
@@ -168,7 +174,6 @@ export async function searchLaws(query: string, limit = 300, options: { anyWords
   });
   const scored = hits.map(({ hit, rank }) => ({ hit, score: (numbers.some((n) => hit.numbers.includes(n)) ? 100 : 0) + rank * 10 }));
   scored.sort((a, b) => b.score - a.score || b.hit.views - a.hit.views);
-  const acts = tsq ? await actHits(tsq, 10) : [];
   const seen = new Set<string>();
   return [...acts, ...scored.map((s) => s.hit)].filter((h) => !seen.has(h.id) && seen.add(h.id)).slice(0, limit);
 }
