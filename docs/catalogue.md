@@ -25,6 +25,8 @@ Blocks are the reader's own: `{ kind: "para" | "clause" | "tail", mark?, text, n
 | `GET /catalogue/cases` | `q`, `field=all\|title\|citation\|judge\|law`, `courts=AD,HCD`, `types=civil,…`, `yearFrom`, `yearTo`, `law` (slug or title words), `sort=latest\|oldest\|az\|za`, `page`, `perPage` (or `all`, up to 1,000) | `{ cases: CaseSummary[], total, page, perPage }` |
 | `GET /catalogue/cases/latest` | `limit` | `{ cases: CaseSummary[] }` — newest with a known date |
 | `GET /catalogue/cases/:slug` | | `{ case: CaseDetail }` — text (paragraphs), translation, parties, advocates, citations, `laws` with titles, related, prev/next |
+| `GET /catalogue/sitemap` | | `{ laws: [{ slug, updatedAt, text, orders: string[] }], cases: [{ slug, updatedAt }], sections }` — published laws (whether they have a full text, and their Orders), published judgments, and how many sections there are; for the reader site's sitemap |
+| `GET /catalogue/sitemap/sections` | `from`, `to` (inclusive, at most 20,000 apart) | `{ sections: [{ slug, n, updatedAt }] }` — sections of published laws in a stable order |
 | `GET /catalogue/home` | | `{ laws: LawRecord[6], cases: CaseSummary[5], sections: [{ href, law, n, label: Text, title: Text, lawTitle: Text, views: { month, week } }] }` |
 | `POST /catalogue/reads` | `{ kind: law\|section\|order\|judgment, slug, n? }` (optional reader token) | `202 { ok, counted }` — counts towards "most viewed" and the home page's trends; the same reader (or address) on the same page within 30 minutes isn't counted again |
 

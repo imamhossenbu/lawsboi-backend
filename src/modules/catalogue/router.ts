@@ -7,6 +7,7 @@ import { casesCitingLaw, courtTotals, getCase, latestCases, listCases, mostCited
 import { catalogueTotals, getActText, getLaw, getOrder, getSection, LAW_TYPES, listLaws, popularLaws, SUBJECTS } from "./laws.service.js";
 import { casesQuery, latestQuery, lawsQuery, provisionParam, readSchema, searchQuery, slugParam } from "./schemas.js";
 import { searchLaws } from "./search.service.js";
+import { sitemapIndex, sitemapSections } from "./sitemap.service.js";
 import { sectionLabel, text } from "./shared.js";
 
 // Public: laws, sections, judgments and search, as the reader site reads them. No sign-in; only published rows.
@@ -103,6 +104,25 @@ catalogueRouter.get("/cases/latest", validate("query", latestQuery), async (req,
 
 catalogueRouter.get("/cases/:slug", validate("params", slugParam), async (req, res) => {
   res.json({ case: await getCase(parsed<{ slug: string }>(req, "params").slug) });
+});
+
+/* ---------------------------------------------------------------- sitemap */
+
+const sitemapRange = z.object({
+  from: z.coerce.number().int().min(0),
+  to: z.coerce.number().int().min(0),
+}).refine((r) => r.to >= r.from && r.to - r.from < 20_000, "At most 20,000 sections at a time.");
+
+/** For the reader site's sitemap: every published law, its Orders and whether it has a full text, every judgment,
+ * and how many sections there are. */
+catalogueRouter.get("/sitemap", async (_req, res) => {
+  res.json(await sitemapIndex());
+});
+
+/** A range of sections, for one sitemap file. */
+catalogueRouter.get("/sitemap/sections", validate("query", sitemapRange), async (req, res) => {
+  const { from, to } = parsed<z.infer<typeof sitemapRange>>(req, "query");
+  res.json({ sections: await sitemapSections(from, to) });
 });
 
 /* ------------------------------------------------------------------- home */
