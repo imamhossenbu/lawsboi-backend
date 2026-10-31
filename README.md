@@ -87,6 +87,7 @@ route, its permission, body and response shape.
 | `POST /auth/verify` `{ email, code, purpose: "signup" }` | Confirms the email; sign in next. |
 | `POST /auth/resend` `{ email, purpose, lang }` | Another code (one a minute). |
 | `POST /auth/login` `{ email, password }` | Tokens and the profile. |
+| `POST /auth/google` `{ code, redirectUri, lang }` | "Continue with Google": the code Google returned to the reader site. Signs the reader in, or makes the account (201, `created: true`). Team emails get 403. Needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, else 503. |
 | `POST /auth/refresh` `{ refreshToken }` | New tokens. |
 | `POST /auth/logout` | Ends the session everywhere. |
 | `POST /auth/forgot` `{ email, lang }` → `POST /auth/reset` `{ email, code, password }` | Password reset. |

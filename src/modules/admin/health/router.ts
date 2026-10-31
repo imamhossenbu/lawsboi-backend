@@ -92,6 +92,7 @@ function config() {
     { key: "supabaseSecret", env: "SUPABASE_SECRET_KEY", required: true, state: set(env.SUPABASE_SECRET_KEY) },
     { key: "jwtSecret", env: "JWT_SECRET", required: true, state: set(env.JWT_SECRET) },
     { key: "storage", env: "S3_ENDPOINT / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET", required: isProduction, state: env.s3 ? "set" : "missing" },
+    { key: "google", env: "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET", required: false, state: env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? "set" : "missing" },
     { key: "cronSecret", env: "CRON_SECRET", required: isProduction, state: env.CRON_SECRET ? "set" : "missing" },
     { key: "smtp", env: "SMTP_HOST / SMTP_USER / SMTP_PASS", required: isProduction, state: env.smtp ? "set" : "missing" },
     { key: "emailFrom", env: "EMAIL_FROM", required: false, state: env.EMAIL_FROM ? "set" : "default" },

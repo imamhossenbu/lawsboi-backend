@@ -22,3 +22,5 @@ export const resetSchema = z.object({ email, code, password });
 export const changePasswordSchema = z.object({ current: z.string().min(1), password });
 
 export type Signup = z.infer<typeof signupSchema>;
+
+export const googleSchema = z.object({ code: z.string().min(1).max(2048), redirectUri: z.url().max(500), lang });

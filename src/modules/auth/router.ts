@@ -6,7 +6,8 @@ import { profileOf } from "../me/service.js";
 import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import * as auth from "./service.js";
-import { forgotSchema, loginSchema, refreshSchema, resendSchema, resetSchema, signupSchema, verifySchema } from "./schemas.js";
+import { signInWithGoogle } from "./google.js";
+import { forgotSchema, googleSchema, loginSchema, refreshSchema, resendSchema, resetSchema, signupSchema, verifySchema } from "./schemas.js";
 
 export const authRouter = Router();
 
@@ -37,6 +38,13 @@ authRouter.post("/login", validate("body", loginSchema), async (req, res) => {
   const { tokens, userId } = await auth.login(req.body.email, req.body.password);
   const profile = unwrap(await db.from("profiles").select("*").eq("id", userId).single(), "Your profile");
   res.json({ tokens, user: profileOf(profile) });
+});
+
+/** The code Google gave the reader site, and the redirect URI it used: signs the reader in (or up). */
+authRouter.post("/google", validate("body", googleSchema), async (req, res) => {
+  const { tokens, userId, created } = await signInWithGoogle(req.body);
+  const profile = unwrap(await db.from("profiles").select("*").eq("id", userId).single(), "Your profile");
+  res.status(created ? 201 : 200).json({ tokens, user: profileOf(profile), created });
 });
 
 authRouter.post("/refresh", validate("body", refreshSchema), async (req, res) => {

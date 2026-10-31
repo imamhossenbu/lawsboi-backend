@@ -27,6 +27,11 @@ const schema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET: z.string().optional(),
 
+  // "Continue with Google" for readers (Google Cloud → APIs & Services → Credentials → OAuth client ID, type Web
+  // application, with <READER_URL>/api/auth/google/callback as an authorised redirect URI). Off when either is missing
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   // The external scheduler (cron-job.org) calls /cron/tick with this as a Bearer token
   CRON_SECRET: z.string().optional(),
 
