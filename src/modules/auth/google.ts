@@ -63,8 +63,8 @@ export async function signInWithGoogle(input: { code: string; redirectUri: strin
   const existing = await accountByEmail(email);
   if (existing) {
     const { data: team } = await db.from("team_members").select("id").eq("id", existing.id).maybeSingle();
-    if (team) throw forbidden("That email belongs to a team account. Sign in to the admin panel instead.");
-    if (existing.disabled) throw forbidden("This account has been deactivated.");
+    if (team) throw forbidden("That email belongs to a team account. Sign in to the admin panel instead.", { google: "team" });
+    if (existing.disabled) throw forbidden("This account has been deactivated.", { google: "deactivated" });
     // Google has proved the address, which finishes a sign-up that never got its code
     if (!existing.email_confirmed_at) await updateAccount(existing.id, { confirmed: true });
     return { tokens: await startSession(existing.id), userId: existing.id, created: false };
