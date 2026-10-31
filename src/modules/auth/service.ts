@@ -1,22 +1,15 @@
-import type { Session, User } from "@supabase/supabase-js";
 import { badRequest, conflict, HttpError, unauthorized } from "../../lib/errors.js";
 import { sendMail, type MailResult } from "../../lib/mail/send.js";
 import { otpMail } from "../../lib/mail/templates/otp.js";
 import { codeMatches, hashCode, newCode, OTP_MAX_ATTEMPTS, OTP_RESEND_MS, OTP_TTL_MS } from "../../lib/otp.js";
-import { authClient, db } from "../../lib/supabase.js";
+import { accountByEmail, checkPassword, createAccount, deleteAccountRow, endAllSessions, rotateSession, startSession, updateAccount, type AccountMeta, type Tokens } from "../../lib/accounts.js";
+import { db } from "../../lib/supabase.js";
 import type { Lang, OtpPurpose } from "../../types/rows.js";
 
-// Readers' accounts. Supabase Auth keeps the credentials; this API runs the email codes around them so that
-// sign-up and password resets go through our own mailbox, in the reader's language.
+// Readers' accounts. The `accounts` table keeps the credentials (lib/accounts.ts); this module runs the email codes
+// around them so that sign-up and password resets go through our own mailbox, in the reader's language.
 
-export interface Tokens {
-  accessToken: string;
-  refreshToken: string;
-  /** Seconds since the epoch. */
-  expiresAt: number;
-}
-
-export const tokensOf = (s: Session): Tokens => ({ accessToken: s.access_token, refreshToken: s.refresh_token, expiresAt: s.expires_at ?? 0 });
+export type { Tokens };
 
 /* ------------------------------------------------------------------ codes */
 
@@ -77,37 +70,32 @@ export async function consumeCode(email: string, purpose: OtpPurpose, code: stri
 
 /* --------------------------------------------------------------- accounts */
 
-async function findAuthUser(email: string): Promise<User | null> {
-  // Auth has no lookup by email in the admin API; the profile (or team row) carries the id
-  const { data: profile } = await db.from("profiles").select("id").eq("email", email).maybeSingle();
-  const id = profile?.id;
-  if (!id) return null;
-  const { data } = await db.auth.admin.getUserById(id);
-  return data.user ?? null;
+/** A reader's account by email. Team accounts aren't found here, so readers' forms can't touch them. */
+async function findReaderAccount(email: string) {
+  const account = await accountByEmail(email);
+  if (!account) return null;
+  const { data: profile } = await db.from("profiles").select("id").eq("id", account.id).maybeSingle();
+  return profile ? account : null;
 }
 
-/** Creates the Auth user unconfirmed (the database trigger adds the profile) and emails the code. Someone who
+const metaOf = (a: { meta: unknown }) => (a.meta ?? {}) as AccountMeta;
+
+/** Creates the account unconfirmed (the database trigger adds the profile) and emails the code. Someone who
  * signed up before but never verified gets a fresh code instead of an error. */
 export async function signup(input: { name: string; email: string; password: string; lang: Lang }) {
-  const existing = await findAuthUser(input.email);
+  const existing = await accountByEmail(input.email);
   if (existing) {
+    const { data: team } = await db.from("team_members").select("id").eq("id", existing.id).maybeSingle();
+    if (team) throw conflict("That email belongs to a team account.", { email: "taken" });
     if (existing.email_confirmed_at) throw conflict("An account with this email already exists. Sign in instead.", { email: "taken" });
     // Keep what they typed this time, in case the first attempt had a typo in the name or password
-    await db.auth.admin.updateUserById(existing.id, { password: input.password, user_metadata: { ...existing.user_metadata, name: input.name, lang: input.lang } });
+    await updateAccount(existing.id, { password: input.password, meta: { ...metaOf(existing), name: input.name, lang: input.lang } });
     await db.from("profiles").update({ name: input.name, lang: input.lang }).eq("id", existing.id);
   } else {
-    const { data: team } = await db.from("team_members").select("id").eq("email", input.email).maybeSingle();
-    if (team) throw conflict("That email belongs to a team account.", { email: "taken" });
-    const { error } = await db.auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: false,
-      user_metadata: { kind: "reader", name: input.name, lang: input.lang },
+    await createAccount({ email: input.email, password: input.password, confirmed: false, meta: { kind: "reader", name: input.name, lang: input.lang } }).catch((e: unknown) => {
+      if (e instanceof HttpError) throw conflict("An account with this email already exists. Sign in instead.", { email: "taken" });
+      throw e;
     });
-    if (error) {
-      if (error.code === "email_exists") throw conflict("An account with this email already exists. Sign in instead.", { email: "taken" });
-      throw new Error(`Auth: ${error.message}`);
-    }
   }
   const mail = await issueCode(input.email, "signup", input.lang);
   return { mail };
@@ -115,61 +103,62 @@ export async function signup(input: { name: string; email: string; password: str
 
 /** The code checks out: confirm the email so the password works. */
 export async function verifySignup(email: string, code: string) {
-  const user = await findAuthUser(email);
-  if (!user) throw badRequest("Start again: that sign-up wasn't found.", { email: "unknown" });
+  const account = await findReaderAccount(email);
+  if (!account) throw badRequest("Start again: that sign-up wasn't found.", { email: "unknown" });
   await consumeCode(email, "signup", code);
-  const { error } = await db.auth.admin.updateUserById(user.id, { email_confirm: true });
-  if (error) throw new Error(`Auth: ${error.message}`);
+  await updateAccount(account.id, { confirmed: true });
 }
 
+/** Checks a reader's password and opens a session. Team accounts sign in through /admin/auth instead. */
 export async function login(email: string, password: string): Promise<{ tokens: Tokens; userId: string }> {
-  const { data, error } = await authClient().auth.signInWithPassword({ email, password });
-  if (error || !data.session) {
-    if (error?.code === "email_not_confirmed") throw new HttpError("unauthorized", "Verify your email first: we've sent you a code.", { email: "unverified" });
-    throw new HttpError("unauthorized", "Wrong email or password.", { password: "wrong" });
-  }
-  return { tokens: tokensOf(data.session), userId: data.user.id };
+  const checked = await checkPassword(email, password);
+  const { data: profile } = checked ? await db.from("profiles").select("id").eq("id", checked.id).maybeSingle() : { data: null };
+  const account = profile ? checked : null;
+  if (!account) throw new HttpError("unauthorized", "Wrong email or password.", { password: "wrong" });
+  if (!account.email_confirmed_at) throw new HttpError("unauthorized", "Verify your email first: we've sent you a code.", { email: "unverified" });
+  if (account.disabled) throw new HttpError("unauthorized", "This account has been deactivated.");
+  return { tokens: await startSession(account.id), userId: account.id };
 }
 
 export async function refresh(refreshToken: string): Promise<Tokens> {
-  const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken });
-  if (error || !data.session) throw unauthorized("Your session has expired. Sign in again.");
-  return tokensOf(data.session);
+  const tokens = await rotateSession(refreshToken);
+  if (!tokens) throw unauthorized("Your session has expired. Sign in again.");
+  return tokens;
 }
 
-/** Ends the session behind this token, on every device. */
-export async function logout(accessToken: string) {
-  const { error } = await db.auth.admin.signOut(accessToken, "global");
-  if (error) throw unauthorized("Your session has already ended.");
+/** Ends every session of this account, on every device. */
+export async function logout(accountId: string) {
+  await endAllSessions(accountId);
 }
 
 /** Starts a reset. Answers the same whether or not the address exists, so the form can't be used to list accounts. */
 export async function forgotPassword(email: string, lang: Lang): Promise<MailResult | "unknown"> {
-  const user = await findAuthUser(email);
-  if (!user) return "unknown";
-  return issueCode(email, "reset", user.user_metadata?.lang === "bn" ? "bn" : lang);
+  const account = await findReaderAccount(email);
+  if (!account) return "unknown";
+  return issueCode(email, "reset", metaOf(account).lang === "bn" ? "bn" : lang);
 }
 
 export async function resetPassword(email: string, code: string, password: string) {
-  const user = await findAuthUser(email);
-  if (!user) throw badRequest("That code isn't right.", { code: "wrong" });
+  const account = await findReaderAccount(email);
+  if (!account) throw badRequest("That code isn't right.", { code: "wrong" });
   await consumeCode(email, "reset", code);
-  const { error } = await db.auth.admin.updateUserById(user.id, { password, email_confirm: true });
-  if (error) throw new Error(`Auth: ${error.message}`);
+  // Proving the email by code also confirms it
+  await updateAccount(account.id, { password, confirmed: true });
+  // Whoever might have had the old password is signed out
+  await endAllSessions(account.id);
 }
 
-/** Deletes the account for good: the Auth user goes, and the profile, tickets and saved items cascade with it. */
+/** Deletes the account for good: the profile, tickets and saved items cascade with it. */
 export async function deleteAccount(email: string, userId: string, password: string) {
-  const { error: wrong } = await authClient().auth.signInWithPassword({ email, password });
-  if (wrong) throw badRequest("The password isn't right.", { password: "wrong" });
-  const { error } = await db.auth.admin.deleteUser(userId);
-  if (error) throw new Error(`Auth: ${error.message}`);
+  const account = await checkPassword(email, password);
+  if (!account || account.id !== userId) throw badRequest("The password isn't right.", { password: "wrong" });
+  await deleteAccountRow(userId);
 }
 
-/** Checks the current password by signing in with it, then sets the new one. */
-export async function changePassword(email: string, userId: string, current: string, next: string) {
-  const { error: wrong } = await authClient().auth.signInWithPassword({ email, password: current });
-  if (wrong) throw badRequest("The current password isn't right.", { current: "wrong" });
-  const { error } = await db.auth.admin.updateUserById(userId, { password: next });
-  if (error) throw new Error(`Auth: ${error.message}`);
+/** Checks the current password, then sets the new one. Other devices are signed out; this one stays in. */
+export async function changePassword(email: string, userId: string, current: string, next: string, sessionId?: string) {
+  const account = await checkPassword(email, current);
+  if (!account || account.id !== userId) throw badRequest("The current password isn't right.", { current: "wrong" });
+  await updateAccount(userId, { password: next });
+  await endAllSessions(userId, sessionId);
 }

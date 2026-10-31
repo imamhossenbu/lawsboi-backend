@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requirePermission, requireTeam } from "../../../middleware/auth.js";
 import { parsed, validate } from "../../../middleware/validate.js";
 import { conflict, unwrap } from "../../../lib/errors.js";
+import { createAccount, updateAccount } from "../../../lib/accounts.js";
 import { db } from "../../../lib/supabase.js";
 import type { Tables } from "../../../types/database.js";
 import { logAudit } from "../../audit/service.js";
@@ -109,19 +110,10 @@ usersRouter.post("/", requirePermission("users.add"), validate("body", addSchema
   const plan = unwrap(await db.from("plans").select("*").eq("id", b.plan).maybeSingle(), "That plan");
   const taken = await Promise.all([db.from("profiles").select("id").eq("email", b.email).maybeSingle(), db.from("team_members").select("id").eq("email", b.email).maybeSingle()]);
   if (taken.some((t) => t.data)) throw conflict("An account with that email already exists.", { email: "taken" });
-  const { data, error } = await db.auth.admin.createUser({
-    email: b.email,
-    password: randomBytes(24).toString("base64url"),
-    email_confirm: true,
-    user_metadata: { kind: "reader", name: b.name, lang: b.lang },
-  });
-  if (error || !data.user) {
-    if (error?.code === "email_exists") throw conflict("An account with that email already exists.", { email: "taken" });
-    throw new Error(`Auth: ${error?.message}`);
-  }
+  const account = await createAccount({ email: b.email, password: randomBytes(24).toString("base64url"), confirmed: true, meta: { kind: "reader", name: b.name, lang: b.lang } });
   // The database trigger made the profile; set what the form chose
   const cycle = plan.price_monthly === 0 && !plan.price_yearly ? null : (b.cycle ?? "monthly");
-  const user = unwrap(await db.from("profiles").update({ name: b.name, name_bn: b.nameBn ?? null, lang: b.lang, plan_id: plan.id, cycle }).eq("id", data.user.id).select("*").single());
+  const user = unwrap(await db.from("profiles").update({ name: b.name, name_bn: b.nameBn ?? null, lang: b.lang, plan_id: plan.id, cycle }).eq("id", account.id).select("*").single());
   await logAudit(req, { action: "user.add", target: { type: "user", id: user.public_id, label: { en: user.name, bn: user.name_bn ?? user.name } }, changes: [{ field: "email", to: user.email }, { field: "plan", to: user.plan_id }] });
   res.status(201).json({ user: adminUserOf(user) });
 });
@@ -155,7 +147,7 @@ usersRouter.get("/:id", validate("params", idParam), async (req, res) => {
 usersRouter.patch("/:id", requirePermission("users.deactivate"), validate("params", idParam), validate("body", z.object({ active: z.boolean() })), async (req, res) => {
   const before = await findUser(parsed<{ id: string }>(req, "params").id);
   const user = unwrap(await db.from("profiles").update({ active: req.body.active }).eq("id", before.id).select("*").single());
-  await db.auth.admin.updateUserById(user.id, { ban_duration: req.body.active ? "none" : "876000h" });
+  await updateAccount(user.id, { disabled: !req.body.active });
   await logAudit(req, {
     action: req.body.active ? "user.activate" : "user.deactivate",
     target: { type: "user", id: user.public_id, label: { en: user.name, bn: user.name_bn ?? user.name } },

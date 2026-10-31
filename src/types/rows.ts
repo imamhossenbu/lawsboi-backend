@@ -46,3 +46,5 @@ export type JudgmentRow = Tables<"judgments">;
 export type JudgmentLawRow = Tables<"judgment_laws">;
 export type AssistantQuestionRow = Tables<"assistant_questions">;
 export type AuditLogRow = Tables<"audit_logs">;
+export type AccountRow = Tables<"accounts">;
+export type SessionRow = Tables<"sessions">;

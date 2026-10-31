@@ -1,8 +1,17 @@
 # Lawsboi API
 
 The server behind the reader site (`../lawsboi`) and the admin panel (`../lawsboi-admin`). Express 5 and TypeScript
-on Node 22+, with Supabase for Postgres, Auth, Storage and Realtime, nodemailer for email and Google Gemini for
-the assistant's answers and the panel's AI help.
+on Node 22+. Supabase is only the database (Postgres); everything else is the API's own or a third party:
+
+| What | Where |
+| --- | --- |
+| Database | Supabase Postgres, through `@supabase/supabase-js` with the secret key |
+| Sign-ins | The API itself: bcrypt passwords in `accounts`, JWT access tokens, rotating refresh tokens in `sessions` |
+| Ticket attachments | Backblaze B2 through its S3 API (private bucket, 10-minute signed links) |
+| Email | Gmail SMTP through nodemailer |
+| AI | Google Gemini |
+| Hosting | Render (free web service, `render.yaml`) |
+| Scheduled work | cron-job.org calling `/cron/tick` |
 
 What it does:
 
@@ -22,13 +31,14 @@ What it does:
 
 ## Setting up
 
-1. `cp .env.example .env` and fill it in (Supabase keys, the mailbox, the first admin).
+1. `cp .env.example .env` and fill it in (Supabase URL and secret key, `JWT_SECRET`, `S3_*`, the mailbox, the first admin).
 2. `npm run db:migrate` — applies the files in `supabase/migrations/` that `schema_migrations` hasn't recorded, then
    `supabase/seed.sql` (needs `psql` and `DATABASE_URL`). `npm run db:types` regenerates `src/types/database.ts`.
 3. `npm run seed:admin` — makes the first administrator from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 4. Import the data: `npx tsx --env-file=.env scripts/import-catalogue.ts` (laws and judgments from `../lawsboi`) and
    `npx tsx --env-file=.env scripts/import-content.ts` (help centre, pages, flags). Both are safe to run again.
-5. `npm run dev` — the API listens on `PORT` (4000) and checks the mailbox sign-in at start-up.
+5. `npm run dev` — the API listens on `PORT` (4000) and checks the mailbox sign-in at start-up. Without
+   `CRON_SECRET` it runs the scheduled tick itself every minute.
 
 `npm test` runs the unit tests and the route tests (against the database in `.env`, with their own fixtures),
 `npm run typecheck` the compiler, `npm run build` then `npm start` for production. The model stays off under test;
@@ -58,6 +68,7 @@ route, its permission, body and response shape.
 | Wallets, contact details | `/admin/settings` | team (settings.*) | [settings.md](docs/settings.md) |
 | System health | `/admin/health` | team (health.*) | [health.md](docs/health.md) |
 | Liveness | `GET /health` | public | `{ ok, time }` |
+| Scheduled work | `GET`/`POST /cron/tick` | `Authorization: Bearer <CRON_SECRET>` | see Hosting below |
 
 ## How requests work
 
@@ -112,8 +123,8 @@ mirrors the admin panel's `lib/admin/permissions.ts` — change both together.
 src/
   app.ts, index.ts          the Express app, and listening
   config/env.ts             every setting, checked at start-up
-  lib/                      supabase clients, errors, logger, one-time codes, mail (transport + templates),
-                            ai/ (the Gemini client and usage recording)
+  lib/                      supabase (the database), accounts (sign-ins and sessions), storage (S3/B2), errors,
+                            logger, one-time codes, mail (transport + templates), ai/ (Gemini and usage)
   middleware/               auth guards, zod validation, the error handler
   modules/
     auth/, me/              readers' accounts
@@ -123,9 +134,10 @@ src/
     admin/                  auth, team, users, tickets, catalogue, assistant, ai, billing, dashboard, audit,
                             settings, health, content, announcements, flags
     audit/                  logAudit()
+    cron/                   /cron/tick: the scheduled work
   types/database.ts         generated from the live schema (npm run db:types); rows.ts names the rows
 supabase/migrations/        the schema, in order; seed.sql holds the reference rows
-scripts/                    migrate, gen-types, seed-admin, import-catalogue, import-content
+scripts/                    migrate, gen-types, seed-admin, import-catalogue, import-content, move-files-to-storage
 docs/                       every area's routes and shapes
 tests/                      vitest: unit tests and route tests against the live database
 ```
@@ -137,8 +149,44 @@ app password from Google Account → Security → 2-Step Verification → App pa
 allows about 500 messages a day per account; for more, point `SMTP_*` at a transactional service (Resend, Postmark,
 Brevo all offer SMTP). Without SMTP, development writes each email to the console.
 
-## Realtime
+## Sign-ins
 
-Readers can follow a ticket live from the browser with the publishable key and their own access token:
-`tickets` and `ticket_messages` are in the `supabase_realtime` publication, and row level security keeps internal
-notes out. The admin panel talks to this API instead.
+`src/lib/accounts.ts`. Readers and the team both have a row in `accounts` (email, bcrypt hash, confirmed,
+disabled); `profiles` or `team_members` hangs off it by id. Signing in opens a row in `sessions` and returns:
+
+- `accessToken` — a JWT (HS256, `JWT_SECRET`) with the account id and the session id, valid `ACCESS_TOKEN_MINUTES`.
+  Every request checks that the session still exists, so signing out or deactivating someone takes effect at once.
+- `refreshToken` — a random secret; only its SHA-256 is stored. Each `/refresh` replaces it, and a used one stops
+  working. A session unused for `REFRESH_TOKEN_DAYS` ends.
+
+Logging out ends every session of the account; a password reset does too; changing the password ends the others.
+Migration `20261031_700_own_auth.sql` copied everyone from Supabase's `auth.users` with their bcrypt hash, so old
+passwords still work. Supabase Realtime isn't used any more: the reader site and the panel only talk to this API.
+
+## Files
+
+`src/lib/storage.ts`: ticket attachments go to the bucket `S3_BUCKET` under `<ticket>/<message>/<uuid>-<name>`
+(the `storage_path` in `ticket_files`), and are served by 10-minute signed links. Any S3-compatible storage works;
+today it is Backblaze B2 (10 GB free, no card): make a **private** bucket, copy its Endpoint into `S3_ENDPOINT`
+(with `https://`) and the region inside it (`us-east-005`) into `S3_REGION`, then add an application key with Read
+and Write on that bucket (`keyID` → `S3_ACCESS_KEY_ID`, `applicationKey` → `S3_SECRET_ACCESS_KEY`). Moving to
+Cloudflare R2 later is only new `S3_*` values. Files uploaded while attachments were in Supabase Storage are
+copied over once with `npx tsx --env-file=.env scripts/move-files-to-storage.ts`.
+
+## Hosting and the scheduler
+
+The API runs on Render's free plan (`render.yaml`: New → Blueprint). A free instance sleeps after 15 minutes
+without requests, and a free Supabase project is paused after a week without activity, so an outside scheduler
+calls the API all the time:
+
+- **cron-job.org** (free): a job for `https://<your-app>.onrender.com/cron/tick`, every **5 minutes**, method GET,
+  with the header `Authorization: Bearer <CRON_SECRET>` (Advanced → Headers). Render generates `CRON_SECRET`;
+  copy it from the service's Environment page.
+
+Each tick (`src/modules/cron/service.ts`) queries the database (Supabase stays active), sends announcements whose
+time has come, records a health run (at most one per five minutes), and deletes expired sessions and old one-time
+codes. It answers `{ at, ms, database, announcements, health, sessionsDeleted, codesDeleted, errors }`, with 500
+when a step failed, so cron-job.org's failure emails tell you. Calls without the secret get 401.
+
+Render's 750 free hours a month cover one instance awake all month. The first call after a sleep takes ~30–60 s;
+the scheduler is what keeps readers from ever seeing that.

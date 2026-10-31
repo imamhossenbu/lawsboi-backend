@@ -1,0 +1,58 @@
+# Render blueprint for the API (Dashboard → New → Blueprint, pick this repo).
+# The free plan sleeps after 15 idle minutes; cron-job.org calling /cron/tick every few minutes keeps it awake,
+# runs the scheduled work, and keeps the free Supabase project from pausing. See "Hosting" in README.md.
+services:
+  - type: web
+    name: lawsboi-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      # Fill these in on the dashboard
+      - key: CORS_ORIGINS
+        sync: false
+      - key: READER_URL
+        sync: false
+      - key: ADMIN_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SUPPORT_INBOX
+        sync: false
+      - key: OTP_SECRET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

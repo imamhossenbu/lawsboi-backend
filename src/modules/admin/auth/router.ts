@@ -4,13 +4,14 @@ import { z } from "zod";
 import { requireTeam } from "../../../middleware/auth.js";
 import { validate } from "../../../middleware/validate.js";
 import { unauthorized, unwrap } from "../../../lib/errors.js";
-import { authClient, db } from "../../../lib/supabase.js";
+import { db } from "../../../lib/supabase.js";
 import { changePasswordSchema, loginSchema } from "../../auth/schemas.js";
-import { changePassword, logout, refresh, tokensOf } from "../../auth/service.js";
+import { changePassword, logout, refresh } from "../../auth/service.js";
+import { checkPassword, startSession } from "../../../lib/accounts.js";
 import { logAudit } from "../../audit/service.js";
 import { memberOf } from "../team/service.js";
 
-// Team sign-in for the admin panel. The same Supabase Auth as readers, but only an active team_members row gets in.
+// Team sign-in for the admin panel. The same accounts as readers, but only an active team_members row gets in.
 
 export const adminAuthRouter = Router();
 
@@ -18,13 +19,14 @@ export const adminAuthRouter = Router();
 const strict = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false });
 
 adminAuthRouter.post("/login", strict, validate("body", loginSchema), async (req, res) => {
-  const { data, error } = await authClient().auth.signInWithPassword(req.body);
-  if (error || !data.session) throw unauthorized("Wrong email or password.");
-  const member = unwrap(await db.from("team_members").select("*").eq("id", data.user.id).maybeSingle(), "A team account");
-  if (!member.active) throw unauthorized("This team account has been deactivated.");
+  const account = await checkPassword(req.body.email, req.body.password);
+  const { data: member } = account ? await db.from("team_members").select("*").eq("id", account.id).maybeSingle() : { data: null };
+  if (!account || !member) throw unauthorized("Wrong email or password.");
+  if (!member.active || account.disabled) throw unauthorized("This team account has been deactivated.");
+  const tokens = await startSession(account.id);
   // Their first sign-in ends the invitation
   const accepted = member.accepted_at ? member : unwrap(await db.from("team_members").update({ accepted_at: new Date().toISOString(), invited_at: null }).eq("id", member.id).select("*").single());
-  res.json({ tokens: tokensOf(data.session), member: memberOf(accepted), mustChangePassword: accepted.must_change_password });
+  res.json({ tokens, member: memberOf(accepted), mustChangePassword: accepted.must_change_password });
 });
 
 adminAuthRouter.post("/refresh", validate("body", z.object({ refreshToken: z.string().min(1) })), async (req, res) => {
@@ -37,13 +39,13 @@ adminAuthRouter.get("/me", requireTeam, (req, res) => {
 
 adminAuthRouter.post("/password", requireTeam, validate("body", changePasswordSchema), async (req, res) => {
   const me = req.member!;
-  await changePassword(me.email, me.id, req.body.current, req.body.password);
+  await changePassword(me.email, me.id, req.body.current, req.body.password, req.authUser!.sessionId);
   await db.from("team_members").update({ must_change_password: false }).eq("id", me.id);
   await logAudit(req, { action: "account.password", target: { type: "account", id: me.public_id, label: { en: me.name, bn: me.name_bn ?? me.name } } });
   res.json({ ok: true });
 });
 
 adminAuthRouter.post("/logout", requireTeam, async (req, res) => {
-  await logout(req.accessToken!);
+  await logout(req.member!.id);
   res.status(204).end();
 });

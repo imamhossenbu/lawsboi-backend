@@ -26,7 +26,7 @@ or the banner clicked (email opens aren't tracked).
 | GET | `/content/banner` | reader | `{ banner: { id, title, body, link, until } \| null }` — newest live banner for the reader's plan; counts as reached |
 | POST | `/content/announcements/:id/banner-click` | reader | 204 — counts as opened |
 
-Readers can also follow `announcement_deliveries` (their own rows) over Supabase Realtime with their token.
+Scheduled announcements go out on the next `/cron/tick` (see Hosting in the README), and before any reader's bell loads.
 
 ## Team (`/admin/announcements`) — `announcements.view` to read
 

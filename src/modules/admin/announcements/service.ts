@@ -95,14 +95,3 @@ export async function sendDueAnnouncements() {
   for (const a of due) await send(a);
   return due.length;
 }
-
-let timer: NodeJS.Timeout | null = null;
-
-/** Checks for due announcements every minute. Unref'd, so it never keeps a process (or a test) alive. */
-export function startAnnouncementScheduler(everyMs = 60_000) {
-  if (timer || env.NODE_ENV === "test") return;
-  timer = setInterval(() => {
-    sendDueAnnouncements().catch((err: unknown) => logger.error({ err }, "scheduled announcements not sent"));
-  }, everyMs);
-  timer.unref();
-}

@@ -6,6 +6,7 @@ import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { changePasswordSchema } from "../auth/schemas.js";
 import { changePassword, deleteAccount } from "../auth/service.js";
+import { updateAccount } from "../../lib/accounts.js";
 import { profileOf } from "./service.js";
 
 export const meRouter = Router();
@@ -49,17 +50,17 @@ meRouter.patch("/", validate("body", patchSchema), async (req, res) => {
   };
   const updated = unwrap(await db.from("profiles").update(patch).eq("id", me.id).select("*").single(), "Your profile");
   if (b.name !== undefined || b.lang !== undefined) {
-    await db.auth.admin.updateUserById(me.id, { user_metadata: { kind: "reader", name: updated.name, lang: updated.lang } });
+    await updateAccount(me.id, { meta: { kind: "reader", name: updated.name, lang: updated.lang } });
   }
   res.json({ user: profileOf(updated) });
 });
 
 meRouter.post("/password", validate("body", changePasswordSchema), async (req, res) => {
-  await changePassword(req.reader!.email, req.reader!.id, req.body.current, req.body.password);
+  await changePassword(req.reader!.email, req.reader!.id, req.body.current, req.body.password, req.authUser!.sessionId);
   res.json({ ok: true });
 });
 
-/** Closes the account. The password confirms it's really them; everything they own goes with the Auth user. */
+/** Closes the account. The password confirms it's really them; everything they own goes with the account. */
 meRouter.delete("/", validate("body", z.object({ password: z.string().min(1) })), async (req, res) => {
   await deleteAccount(req.reader!.email, req.reader!.id, req.body.password);
   res.status(204).end();

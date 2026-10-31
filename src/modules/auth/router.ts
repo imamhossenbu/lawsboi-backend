@@ -44,7 +44,7 @@ authRouter.post("/refresh", validate("body", refreshSchema), async (req, res) =>
 });
 
 authRouter.post("/logout", authenticate, async (req, res) => {
-  await auth.logout(req.accessToken!);
+  await auth.logout(req.authUser!.id);
   res.status(204).end();
 });
 

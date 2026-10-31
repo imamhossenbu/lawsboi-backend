@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { notFound, unwrap } from "../../lib/errors.js";
 import { sendMail } from "../../lib/mail/send.js";
 import { ticketInboxMail, ticketReplyMail } from "../../lib/mail/templates/ticket.js";
+import { putFile, signedFileUrl } from "../../lib/storage.js";
 import { db } from "../../lib/supabase.js";
 import type { TablesUpdate } from "../../types/database.js";
 import type {
@@ -22,8 +23,6 @@ import type {
 
 // Everything that happens to a ticket, for both sides. The reader's router and the admin's router call these and
 // shape the result for their own screens; the rules (who is told, what is logged) live here once.
-
-export const BUCKET = "ticket-files";
 
 export type Actor = { kind: "reader"; id: string } | { kind: "team"; member: TeamMemberRow };
 
@@ -56,9 +55,11 @@ export async function loadTicketRow(ticket: TicketRow): Promise<TicketFull> {
 
 /** A short-lived link to one attachment. */
 export async function fileUrl(file: TicketFileRow) {
-  const { data, error } = await db.storage.from(BUCKET).createSignedUrl(file.storage_path, 60 * 10, { download: file.name });
-  if (error || !data) throw notFound("That file");
-  return data.signedUrl;
+  try {
+    return await signedFileUrl(file.storage_path, file.name, 60 * 10);
+  } catch {
+    throw notFound("That file");
+  }
 }
 
 /* ----------------------------------------------------------------- writes */
@@ -76,8 +77,7 @@ async function storeFiles(ticket: TicketRow, messageId: string, uploads: Upload[
   const rows: TicketFileRow[] = [];
   for (const file of uploads) {
     const path = `${ticket.id}/${messageId}/${randomUUID()}-${safeName(file.originalname)}`;
-    const { error } = await db.storage.from(BUCKET).upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
-    if (error) throw new Error(`Storage: ${error.message}`);
+    await putFile(path, file.buffer, file.mimetype);
     rows.push(
       unwrap(
         await db

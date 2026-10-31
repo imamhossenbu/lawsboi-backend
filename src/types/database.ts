@@ -9,7 +9,21 @@ export type Database = {
   
   "public": {
           Tables: {
-            "ai_usage": {
+            "accounts": {
+                  Row: {
+                    "created_at": string,"disabled": boolean,"email": string,"email_confirmed_at": string | null,"id": string,"meta": NonNullable<Json>,"password_hash": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"disabled"?: boolean,"email": string,"email_confirmed_at"?: string | null,"id"?: string,"meta"?: NonNullable<Json>,"password_hash": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"disabled"?: boolean,"email"?: string,"email_confirmed_at"?: string | null,"id"?: string,"meta"?: NonNullable<Json>,"password_hash"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"ai_usage": {
                   Row: {
                     "at": string,"error": string | null,"id": string,"input_tokens": number,"member_id": string | null,"model": string | null,"ms": number,"ok": boolean,"output_tokens": number,"purpose": string,"total_tokens": number,"user_id": string | null
                   }
@@ -560,6 +574,12 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
+      foreignKeyName: "profiles_id_fkey"
+      columns: ["id"]
+isOneToOne: true
+      referencedRelation: "accounts"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "profiles_plan_id_fkey"
       columns: ["plan_id"]
 isOneToOne: false
@@ -620,6 +640,26 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"sessions": {
+                  Row: {
+                    "account_id": string,"created_at": string,"expires_at": string,"id": string,"last_used_at": string,"refresh_hash": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "account_id": string,"created_at"?: string,"expires_at": string,"id"?: string,"last_used_at"?: string,"refresh_hash": string
+                  }
+                  Update: {
+                    "account_id"?: string,"created_at"?: string,"expires_at"?: string,"id"?: string,"last_used_at"?: string,"refresh_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "sessions_account_id_fkey"
+      columns: ["account_id"]
+isOneToOne: false
+      referencedRelation: "accounts"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"site_pages": {
                   Row: {
@@ -694,6 +734,12 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
+      foreignKeyName: "team_members_id_fkey"
+      columns: ["id"]
+isOneToOne: true
+      referencedRelation: "accounts"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "team_members_invited_by_fkey"
       columns: ["invited_by"]
 isOneToOne: false

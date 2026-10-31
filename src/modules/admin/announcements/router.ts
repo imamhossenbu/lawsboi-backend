@@ -6,14 +6,13 @@ import { badRequest, unwrap } from "../../../lib/errors.js";
 import { db } from "../../../lib/supabase.js";
 import { logAudit } from "../../audit/service.js";
 import { announcementOf, bannerState, channels, flagPlans, gaps, linkPages, textSchema, toDbChannel, topics, type AnnouncementRow } from "../../content/shared.js";
-import { deliveries, reach, send, sendDueAnnouncements, startAnnouncementScheduler } from "./service.js";
+import { deliveries, reach, send, sendDueAnnouncements } from "./service.js";
 
 // Team: announcements to readers. A note in the bell, an email and/or a banner across the reader's dashboard,
 // written now, scheduled, or sent at once. A sent announcement can't be edited, only duplicated.
 
 export const adminAnnouncementsRouter = Router();
 adminAnnouncementsRouter.use(requireTeam, requirePermission("announcements.view"));
-startAnnouncementScheduler();
 
 const idParam = z.object({ id: z.string().regex(/^ANN-\d{4,}$/) });
 const label = (a: AnnouncementRow) => ({ en: a.title, bn: a.title_bn || a.title });

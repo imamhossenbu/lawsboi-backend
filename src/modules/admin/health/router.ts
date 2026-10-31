@@ -5,6 +5,7 @@ import { logger } from "../../../lib/logger.js";
 import { parsed, validate } from "../../../middleware/validate.js";
 import { getTransport } from "../../../lib/mail/transport.js";
 import { requirePermission, requireTeam } from "../../../middleware/auth.js";
+import { probeBucket, storageConfigured } from "../../../lib/storage.js";
 import { db } from "../../../lib/supabase.js";
 
 // System health: what the API can really check right now. No sample figures; what can't be known is null.
@@ -43,13 +44,11 @@ async function checkDatabase() {
   };
 }
 
+/** The storage bucket answering. Not set up counts as down in production and degraded in development. */
 async function checkStorage() {
-  const probe = await timed(async () => {
-    const { data, error } = await db.storage.listBuckets();
-    if (error) throw new Error(error.message);
-    return data.map((b) => b.name);
-  });
-  return { status: status(!probe.error, probe.ms, SLOW_MS.storage), ms: probe.ms, error: probe.error, buckets: probe.result ?? [] };
+  if (!storageConfigured()) return { status: (isProduction ? "down" : "degraded") as Status, ms: null, error: "File storage isn't set up", buckets: [] as string[] };
+  const probe = await timed(probeBucket);
+  return { status: status(!probe.error, probe.ms, SLOW_MS.storage), ms: probe.ms, error: probe.error, buckets: probe.result ? [probe.result] : [] };
 }
 
 async function checkMail() {
@@ -91,6 +90,9 @@ function config() {
   return [
     { key: "supabaseUrl", env: "SUPABASE_URL", required: true, state: set(env.SUPABASE_URL) },
     { key: "supabaseSecret", env: "SUPABASE_SECRET_KEY", required: true, state: set(env.SUPABASE_SECRET_KEY) },
+    { key: "jwtSecret", env: "JWT_SECRET", required: true, state: set(env.JWT_SECRET) },
+    { key: "storage", env: "S3_ENDPOINT / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET", required: isProduction, state: env.s3 ? "set" : "missing" },
+    { key: "cronSecret", env: "CRON_SECRET", required: isProduction, state: env.CRON_SECRET ? "set" : "missing" },
     { key: "smtp", env: "SMTP_HOST / SMTP_USER / SMTP_PASS", required: isProduction, state: env.smtp ? "set" : "missing" },
     { key: "emailFrom", env: "EMAIL_FROM", required: false, state: env.EMAIL_FROM ? "set" : "default" },
     { key: "supportInbox", env: "SUPPORT_INBOX", required: false, state: env.SUPPORT_INBOX ? "set" : "default" },
@@ -120,6 +122,17 @@ async function record(overall: Status, checks: Checks, source: "schedule" | "pag
   if (error) logger.warn({ error: error.message }, "health run not recorded");
 }
 
+const SCHEDULE_EVERY_MS = 5 * 60_000;
+
+/** One scheduled run, called by /cron/tick. Skipped when the last one is under five minutes old, so a scheduler
+ * calling every minute still records one run per five minutes. Returns whether it ran. */
+export async function scheduledHealthRun() {
+  const { data: last } = await db.from("health_runs").select("at").eq("source", "schedule").order("at", { ascending: false }).limit(1).maybeSingle();
+  if (last && Date.now() - Date.parse(last.at) < SCHEDULE_EVERY_MS - 30_000) return false;
+  await scheduledRun();
+  return true;
+}
+
 async function scheduledRun() {
   const [database, storage, mail, site] = await Promise.all([checkDatabase(), checkStorage(), checkMail(), checkSite(env.READER_URL)]);
   const checks: Checks = { database: { status: database.status, ms: database.ms }, storage: { status: storage.status, ms: storage.ms }, mail: { status: mail.status, ms: mail.ms }, site: { status: site.status, ms: site.ms } };
@@ -127,10 +140,6 @@ async function scheduledRun() {
   await db.from("health_runs").delete().lt("at", new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString());
 }
 
-// Every five minutes while the API runs (not under test), so the history fills whether or not anyone is looking
-if (env.NODE_ENV !== "test") {
-  setInterval(() => void scheduledRun().catch((err) => logger.warn({ err }, "scheduled health run failed")), 5 * 60_000).unref();
-}
 
 export interface Incident {
   from: string;

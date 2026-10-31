@@ -1,17 +1,18 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { verifyAccessToken } from "../lib/accounts.js";
 import { db } from "../lib/supabase.js";
 import { forbidden, unauthorized } from "../lib/errors.js";
 import type { ProfileRow, TeamMemberRow } from "../types/rows.js";
 import { can, type Action } from "../modules/admin/team/permissions.js";
 
-// Who is calling. Both readers and team members send the Supabase access token they got from the sign-in routes
-// as "Authorization: Bearer <token>"; the token says who they are, and their table says what they may do.
+// Who is calling. Both readers and team members send the access token they got from the sign-in routes as
+// "Authorization: Bearer <token>"; the token says who they are, and their table says what they may do.
 
 declare global {
   namespace Express {
     interface Request {
-      /** The Supabase Auth user behind the token. */
-      authUser?: { id: string; email: string };
+      /** The account behind the token, and the session it belongs to. */
+      authUser?: { id: string; email: string; sessionId: string };
       accessToken?: string;
       reader?: ProfileRow;
       member?: TeamMemberRow;
@@ -30,9 +31,9 @@ function bearer(req: Request) {
 async function identify(req: Request) {
   const token = bearer(req);
   if (!token) throw unauthorized();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user?.email) throw unauthorized("Your session has expired. Sign in again.");
-  req.authUser = { id: data.user.id, email: data.user.email };
+  const user = await verifyAccessToken(token);
+  if (!user) throw unauthorized("Your session has expired. Sign in again.");
+  req.authUser = user;
   req.accessToken = token;
   return req.authUser;
 }

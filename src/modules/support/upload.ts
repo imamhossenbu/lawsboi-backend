@@ -3,7 +3,7 @@ import { badRequest } from "../../lib/errors.js";
 import { ALLOWED_TYPES, MAX_FILE_BYTES, MAX_FILES } from "./schemas.js";
 
 /** Attachments as the reader's form allows them: up to three PNG, JPEG or PDF files of 2 MB each, held in memory
- * just long enough to go to Storage. */
+ * just long enough to go to storage. */
 export const attachments = multer({
   storage: multer.memoryStorage(),
   limits: { files: MAX_FILES, fileSize: MAX_FILE_BYTES },

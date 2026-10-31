@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // merges a Bangla question's two searches.
 
 process.env.SUPABASE_URL ??= "https://example.supabase.co";
-process.env.SUPABASE_PUBLISHABLE_KEY ??= "sb_publishable_test";
+process.env.JWT_SECRET ??= "test-jwt-secret-that-is-long-enough-1234567890";
 process.env.SUPABASE_SECRET_KEY ??= "sb_secret_test";
 process.env.NODE_ENV = "test";
 

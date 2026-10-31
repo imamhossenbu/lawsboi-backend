@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Express } from "express";
 import request from "supertest";
 
-// Route tests run against the live Supabase project in .env, with fixtures named after a prefix and deleted after.
+// Route tests run against the live Supabase database in .env, with fixtures named after a prefix and deleted after.
 
 export function loadEnv() {
   if (process.env.SUPABASE_URL) return;
@@ -36,11 +36,10 @@ export async function adminToken(server: Express) {
 /** A confirmed reader with a known password, signed in. Returns the token, the auth id and a cleanup. */
 export async function reader(server: Express, tag: string, plan = "free") {
   const { db } = await import("../src/lib/supabase.js");
+  const { createAccount, deleteAccountRow } = await import("../src/lib/accounts.js");
   const email = testEmail(tag);
   const password = "reader-pass-123";
-  const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { kind: "reader", name: `Test ${tag}`, lang: "en" } });
-  if (error || !data.user) throw new Error(`createUser: ${error?.message}`);
-  const id = data.user.id;
+  const { id } = await createAccount({ email, password, confirmed: true, meta: { kind: "reader", name: `Test ${tag}`, lang: "en" } });
   if (plan !== "free") await db.from("profiles").update({ plan_id: plan, cycle: "monthly" }).eq("id", id);
   const login = await request(server).post("/auth/login").send({ email, password });
   if (login.status !== 200) throw new Error(`reader login failed: ${login.status} ${JSON.stringify(login.body)}`);
@@ -50,7 +49,7 @@ export async function reader(server: Express, tag: string, plan = "free") {
     token: login.body.tokens.accessToken as string,
     publicId: login.body.user.id as string,
     cleanup: async () => {
-      await db.auth.admin.deleteUser(id);
+      await deleteAccountRow(id);
     },
   };
 }
@@ -58,6 +57,7 @@ export async function reader(server: Express, tag: string, plan = "free") {
 /** Removes every test reader left behind by an interrupted run. */
 export async function sweep() {
   const { db } = await import("../src/lib/supabase.js");
+  const { deleteAccountRow } = await import("../src/lib/accounts.js");
   const { data } = await db.from("profiles").select("id").like("email", `${PREFIX}+%`);
-  for (const p of data ?? []) await db.auth.admin.deleteUser(p.id);
+  for (const p of data ?? []) await deleteAccountRow(p.id);
 }

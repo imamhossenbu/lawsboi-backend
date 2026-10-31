@@ -25,6 +25,7 @@ import { authRouter } from "./modules/auth/router.js";
 import { billingRouter } from "./modules/billing/router.js";
 import { catalogueRouter } from "./modules/catalogue/router.js";
 import { contentRouter } from "./modules/content/router.js";
+import { cronRouter } from "./modules/cron/router.js";
 import { libraryRouter } from "./modules/library/router.js";
 import { meRouter } from "./modules/me/router.js";
 import { supportRouter } from "./modules/support/router.js";
@@ -33,7 +34,7 @@ import { supportRouter } from "./modules/support/router.js";
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
-  // Behind Vercel, Railway, Fly or nginx the client's address is in X-Forwarded-For
+  // Behind Render, Vercel, Railway, Fly or nginx the client's address is in X-Forwarded-For
   app.set("trust proxy", 1);
 
   app.use(helmet());
@@ -42,13 +43,16 @@ export function createApp() {
   app.use(
     pinoHttp({
       logger,
-      autoLogging: { ignore: (req) => req.url === "/health" },
+      autoLogging: { ignore: (req) => req.url === "/health" || req.url === "/cron/tick" },
       // One line per request: method, path, status and time; headers and bodies stay out of the log
       serializers: { req: (r) => ({ method: r.method, url: r.url }), res: (r) => ({ status: r.statusCode }) },
     }),
   );
 
   app.get("/health", (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+  // The external scheduler (cron-job.org): scheduled work, and keeping the server and the database awake
+  app.use("/cron", cronRouter);
 
   // Public and readers
   app.use("/auth", authRouter);

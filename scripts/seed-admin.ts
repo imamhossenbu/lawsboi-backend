@@ -1,4 +1,5 @@
 import { env } from "../src/config/env.js";
+import { createAccount } from "../src/lib/accounts.js";
 import { db } from "../src/lib/supabase.js";
 import { presets } from "../src/modules/admin/team/permissions.js";
 
@@ -15,9 +16,7 @@ const existing = await db.from("team_members").select("*").eq("email", email).ma
 let id = existing.data?.id;
 
 if (!id) {
-  const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { kind: "team", name, lang: "en" } });
-  if (error) throw new Error(`Auth: ${error.message}`);
-  id = data.user.id;
+  id = (await createAccount({ email, password, confirmed: true, meta: { kind: "team", name, lang: "en" } })).id;
   const { error: insert } = await db.from("team_members").insert({ id, name, email, role: "admin", permissions: presets.admin, accepted_at: new Date().toISOString() });
   if (insert) throw new Error(`team_members: ${insert.message}`);
   console.log(`Created admin ${email} (${id}) on ${env.SUPABASE_URL}`);

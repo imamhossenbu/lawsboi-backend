@@ -1,8 +1,9 @@
 import { env } from "../../../config/env.js";
-import { conflict, notFound, unwrap } from "../../../lib/errors.js";
+import { conflict, HttpError, notFound, unwrap } from "../../../lib/errors.js";
 import { sendMail, type MailResult } from "../../../lib/mail/send.js";
 import { inviteMail } from "../../../lib/mail/templates/invite.js";
 import { temporaryPassword } from "../../../lib/passwords.js";
+import { createAccount, updateAccount } from "../../../lib/accounts.js";
 import { db } from "../../../lib/supabase.js";
 import type { Lang, TeamMemberRow, TeamRole } from "../../../types/rows.js";
 import { normalizePermissions, presets, type Action } from "./permissions.js";
@@ -38,27 +39,21 @@ export interface InviteInput {
   lang: Lang;
 }
 
-/** Creates the Auth user with a temporary password, the team row, and emails the invitation. The password is
+/** Creates the account with a temporary password, the team row, and emails the invitation. The password is
  * returned once so the admin can pass it on if the email doesn't arrive; it isn't kept anywhere. */
 export async function inviteMember(input: InviteInput, inviter: TeamMemberRow): Promise<{ member: TeamMemberRow; password: string; mail: MailResult }> {
   const taken = await db.from("profiles").select("id").eq("email", input.email).maybeSingle();
   if (taken.data) throw conflict("That email belongs to a reader account.", { email: "taken" });
   const password = temporaryPassword();
-  const { data, error } = await db.auth.admin.createUser({
-    email: input.email,
-    password,
-    email_confirm: true,
-    user_metadata: { kind: "team", name: input.name, lang: input.lang },
+  const account = await createAccount({ email: input.email, password, confirmed: true, meta: { kind: "team", name: input.name, lang: input.lang } }).catch((e: unknown) => {
+    if (e instanceof HttpError) throw conflict("Someone with that email is already on the team.", { email: "taken" });
+    throw e;
   });
-  if (error || !data.user) {
-    if (error?.code === "email_exists") throw conflict("Someone with that email is already on the team.", { email: "taken" });
-    throw new Error(`Auth: ${error?.message}`);
-  }
   const member = unwrap(
     await db
       .from("team_members")
       .insert({
-        id: data.user.id,
+        id: account.id,
         name: input.name,
         name_bn: input.nameBn ?? null,
         email: input.email,
@@ -79,8 +74,7 @@ export async function inviteMember(input: InviteInput, inviter: TeamMemberRow): 
 export async function reinviteMember(member: TeamMemberRow, inviter: TeamMemberRow, lang: Lang) {
   if (member.accepted_at) throw conflict("They've already signed in; send them a password reset instead.");
   const password = temporaryPassword();
-  const { error } = await db.auth.admin.updateUserById(member.id, { password });
-  if (error) throw new Error(`Auth: ${error.message}`);
+  await updateAccount(member.id, { password });
   const updated = unwrap(await db.from("team_members").update({ invited_at: new Date().toISOString(), must_change_password: true }).eq("id", member.id).select("*").single());
   const mail = await sendInvite(updated, password, inviter, lang);
   return { member: updated, password, mail };
@@ -96,8 +90,7 @@ function sendInvite(member: TeamMemberRow, password: string, inviter: TeamMember
 export async function setActive(member: TeamMemberRow, active: boolean) {
   const updated = unwrap(await db.from("team_members").update({ active }).eq("id", member.id).select("*").single());
   // A deactivated member's tokens stop working at once
-  if (!active) await db.auth.admin.updateUserById(member.id, { ban_duration: "876000h" });
-  else await db.auth.admin.updateUserById(member.id, { ban_duration: "none" });
+  await updateAccount(member.id, { disabled: !active });
   return updated;
 }
 

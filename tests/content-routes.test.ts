@@ -15,6 +15,7 @@ process.env.NODE_ENV = "test";
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 const { createApp } = await import("../src/app.js");
 const { db } = await import("../src/lib/supabase.js");
+const { createAccount, deleteAccountRow } = await import("../src/lib/accounts.js");
 
 const app = createApp();
 const PREFIX = "zzt-content";
@@ -31,10 +32,8 @@ async function signInAdmin() {
 
 async function makeReader() {
   const { data: existing } = await db.from("profiles").select("id").eq("email", readerEmail).maybeSingle();
-  if (existing) await db.auth.admin.deleteUser(existing.id);
-  const { data, error } = await db.auth.admin.createUser({ email: readerEmail, password: "reader-pass-123", email_confirm: true, user_metadata: { kind: "reader", name: "Content Tester", lang: "bn" } });
-  if (error) throw error;
-  readerId = data.user.id;
+  if (existing) await deleteAccountRow(existing.id);
+  readerId = (await createAccount({ email: readerEmail, password: "reader-pass-123", confirmed: true, meta: { kind: "reader", name: "Content Tester", lang: "bn" } })).id;
   const res = await request(app).post("/auth/login").send({ email: readerEmail, password: "reader-pass-123" });
   return res.body.tokens.accessToken as string;
 }
@@ -51,7 +50,7 @@ afterAll(async () => {
   await db.from("help_articles").delete().like("slug", `${PREFIX}%`);
   await db.from("announcements").delete().like("title", `${PREFIX}%`);
   await db.from("faqs").delete().like("question", `${PREFIX}%`);
-  if (readerId) await db.auth.admin.deleteUser(readerId);
+  if (readerId) await deleteAccountRow(readerId);
 });
 
 const admin = (r: request.Test) => r.set("authorization", `Bearer ${adminToken}`);
