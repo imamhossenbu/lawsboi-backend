@@ -10,7 +10,7 @@ on Node 22+. Supabase is only the database (Postgres); everything else is the AP
 | Ticket attachments | Backblaze B2 through its S3 API (private bucket, 10-minute signed links) |
 | Email | Gmail SMTP through nodemailer |
 | AI | Google Gemini |
-| Hosting | Render (free web service, `render.yaml`) |
+| Hosting | Vercel (free, no card: `vercel.json`, `api/index.js`); Render also works (`render.yaml`) |
 | Scheduled work | cron-job.org calling `/cron/tick` |
 
 What it does:
@@ -176,6 +176,15 @@ Cloudflare R2 later is only new `S3_*` values. Files uploaded while attachments 
 copied over once with `npx tsx --env-file=.env scripts/move-files-to-storage.ts`.
 
 ## Hosting and the scheduler
+
+**Vercel** (free Hobby plan, no card): import the repo as a new project, framework preset **Other**, and paste the
+environment from `.env` (with `NODE_ENV=production`, a new `JWT_SECRET` and a `CRON_SECRET`). `vercel.json` builds
+with `npm run build` and sends every path to `api/index.js`, which exports the Express app from `dist/`. Each
+request runs as a function, so there is nothing to keep awake; cron-job.org still calls `/cron/tick` for the
+scheduled work and to keep the Supabase project active. Vercel caps a request body at 4.5 MB, so a ticket with three
+2 MB attachments is refused there; two fit.
+
+**Render** (needs a card on new accounts) is the alternative below.
 
 The API runs on Render's free plan (`render.yaml`: New → Blueprint). A free instance sleeps after 15 minutes
 without requests, and a free Supabase project is paused after a week without activity, so an outside scheduler
