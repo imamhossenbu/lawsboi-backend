@@ -178,8 +178,8 @@ copied over once with `npx tsx --env-file=.env scripts/move-files-to-storage.ts`
 ## Hosting and the scheduler
 
 **Vercel** (free Hobby plan, no card): import the repo as a new project, framework preset **Other**, and paste the
-environment from `.env` (with `NODE_ENV=production`, a new `JWT_SECRET` and a `CRON_SECRET`). `vercel.json` builds
-with `npm run build` and sends every path to `api/index.js`, which exports the Express app from `dist/`. Each
+environment from `.env` (with `NODE_ENV=production`, a new `JWT_SECRET` and a `CRON_SECRET`). `vercel.json` runs the function in
+Paris (`cdg1`, beside the Supabase database in eu-west-3: every query is a short hop), builds with `npm run build` and sends every path to `api/index.js`, which exports the Express app from `dist/`. Each
 request runs as a function, so there is nothing to keep awake; cron-job.org still calls `/cron/tick` for the
 scheduled work and to keep the Supabase project active. Vercel caps a request body at 4.5 MB, so a ticket with three
 2 MB attachments is refused there; two fit.
