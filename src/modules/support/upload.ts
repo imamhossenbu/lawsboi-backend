@@ -9,6 +9,6 @@ export const attachments = multer({
   limits: { files: MAX_FILES, fileSize: MAX_FILE_BYTES },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
-    else cb(badRequest("Only PNG, JPEG and PDF files can be attached.", { files: "type" }));
+    else cb(badRequest("Only images (PNG, JPEG, WebP, GIF) and PDF files can be attached.", { files: "type" }));
   },
 }).array("files", MAX_FILES);

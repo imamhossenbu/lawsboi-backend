@@ -6,8 +6,8 @@ import { badRequest, unwrap } from "../../../lib/errors.js";
 import { db } from "../../../lib/supabase.js";
 import type { TeamMemberRow, TicketStatus } from "../../../types/rows.js";
 import { logAudit } from "../../audit/service.js";
-import { categories, priorities, statuses, ticketIdParam } from "../../support/schemas.js";
-import { addMessage, changeField, createTicket, fileUrl, loadTicket, type Actor, type Field, type TicketFull } from "../../support/service.js";
+import { categories, editMessageSchema, messageIdParam, priorities, statuses, ticketIdParam } from "../../support/schemas.js";
+import { addMessage, changeField, createTicket, editMessage, fileUrl, loadTicket, markSeen, unsendMessage, type Actor, type Field, type TicketFull } from "../../support/service.js";
 import { attachments } from "../../support/upload.js";
 import { memberByPublicId } from "../team/service.js";
 import { adminUserOf } from "../users/router.js";
@@ -43,14 +43,24 @@ export function adminTicketOf(full: TicketFull, team: Map<string, TeamMemberRow>
     createdAt: ticket.created_at,
     updatedAt: ticket.updated_at,
     resolvedAt: ticket.resolved_at,
-    messages: messages.map((m) => ({
-      id: m.id,
-      at: m.created_at,
-      author: who(m.author_kind, m.author_id),
-      kind: m.kind,
-      text: m.body,
-      files: (filesByMessage.get(m.id) ?? []).map((f) => ({ id: f.id, name: f.name, size: f.size, type: f.mime })),
-    })),
+    messages: messages.map((m) => {
+      const quoted = m.reply_to ? messages.find((x) => x.id === m.reply_to) : undefined;
+      return {
+        id: m.id,
+        at: m.created_at,
+        author: who(m.author_kind, m.author_id),
+        kind: m.kind,
+        text: m.body,
+        files: (filesByMessage.get(m.id) ?? []).map((f) => ({ id: f.id, name: f.name, size: f.size, type: f.mime })),
+        editedAt: m.edited_at,
+        deleted: !!m.deleted_at,
+        replyTo: quoted
+          ? { id: quoted.id, author: who(quoted.author_kind, quoted.author_id), kind: quoted.kind, text: quoted.deleted_at ? "" : quoted.body.slice(0, 200), deleted: !!quoted.deleted_at, files: (filesByMessage.get(quoted.id) ?? []).length }
+          : null,
+      };
+    }),
+    // The team's replies before this were seen by the reader
+    seenByReaderAt: ticket.reader_seen_at,
     activity: events.map((e) => ({
       id: e.id,
       at: e.created_at,
@@ -208,8 +218,9 @@ adminTicketsRouter.post("/", requirePermission("support.create"), attachments, v
 
 /* ------------------------------------------------------------------- one */
 
+/** One ticket. The panel polls it every few seconds while open, which also marks the reader's messages as seen. */
 adminTicketsRouter.get("/:id", validate("params", ticketIdParam), async (req, res) => {
-  res.json({ ticket: adminTicketOf(await loadTicket(parsed<{ id: string }>(req, "params").id), await teamDirectory()) });
+  res.json({ ticket: adminTicketOf(await markSeen(await loadTicket(parsed<{ id: string }>(req, "params").id), "team"), await teamDirectory()) });
 });
 
 const fieldPermissions: Record<Field, Parameters<typeof requirePermission>[0]> = {
@@ -275,9 +286,29 @@ adminTicketsRouter.post("/bulk", validate("body", z.object({ ids: z.array(z.stri
 
 const messageSchema = z.object({
   kind: z.enum(["reply", "note"]),
-  text: z.string().trim().min(1).max(10_000),
+  // A message may be only attachments
+  text: z.string().trim().max(10_000).default(""),
+  replyTo: z.uuid().optional(),
   /** For replies: the status the ticket moves to once sent (the composer's "then mark as") */
   then: z.enum(statuses).optional(),
+  // The chat sends short messages without the member's sign-off; "1" adds it (a formal reply)
+  withSignOff: z.enum(["0", "1"]).optional().transform((v) => v === "1"),
+});
+
+/** Edits one of the member's own replies or notes (for 15 minutes after sending). */
+adminTicketsRouter.patch("/:id/messages/:messageId", validate("params", messageIdParam), validate("body", z.object({ text: editMessageSchema.shape.message })), async (req, res) => {
+  const { id, messageId } = parsed<{ id: string; messageId: string }>(req, "params");
+  const full = await editMessage(await loadTicket(id), messageId, req.body.text, actorOf(req));
+  await logAudit(req, { action: "ticket.message.edit", target: { type: "ticket", id: full.ticket.public_id, label: label(full) } });
+  res.json({ ticket: adminTicketOf(full, await teamDirectory()) });
+});
+
+/** Unsends one of the member's own replies or notes (for two days). */
+adminTicketsRouter.delete("/:id/messages/:messageId", validate("params", messageIdParam), async (req, res) => {
+  const { id, messageId } = parsed<{ id: string; messageId: string }>(req, "params");
+  const full = await unsendMessage(await loadTicket(id), messageId, actorOf(req));
+  await logAudit(req, { action: "ticket.message.unsend", target: { type: "ticket", id: full.ticket.public_id, label: label(full) } });
+  res.json({ ticket: adminTicketOf(full, await teamDirectory()) });
 });
 
 adminTicketsRouter.post("/:id/messages", validate("params", ticketIdParam), attachments, validate("body", messageSchema), async (req, res) => {
@@ -287,9 +318,9 @@ adminTicketsRouter.post("/:id/messages", validate("params", ticketIdParam), atta
   if (b.kind === "reply" && full.ticket.status === "closed") throw badRequest("Reopen the ticket to reply.");
   const me = req.member!;
   // Replies end with the member's sign-off, when they've set one
-  const signOff = b.kind === "reply" ? ((full.ticket.lang === "bn" && me.signature_bn) || me.signature).trim() : "";
+  const signOff = b.kind === "reply" && b.text && b.withSignOff ? ((full.ticket.lang === "bn" && me.signature_bn) || me.signature).trim() : "";
   const body = signOff ? `${b.text}\n\n${signOff}` : b.text;
-  full = await addMessage(full, b.kind, body, (req.files as Express.Multer.File[] | undefined) ?? [], actorOf(req));
+  full = await addMessage(full, b.kind, body, (req.files as Express.Multer.File[] | undefined) ?? [], actorOf(req), b.replyTo);
   await logAudit(req, { action: b.kind === "reply" ? "ticket.reply" : "ticket.note", target: { type: "ticket", id: full.ticket.public_id, label: label(full) } });
   if (b.kind === "reply" && b.then && b.then !== full.ticket.status) {
     const before = full.ticket.status;
@@ -299,7 +330,7 @@ adminTicketsRouter.post("/:id/messages", validate("params", ticketIdParam), atta
   res.status(201).json({ ticket: adminTicketOf(full, await teamDirectory()) });
 });
 
-adminTicketsRouter.get("/files/:fileId", validate("params", z.object({ fileId: z.uuid() })), async (req, res) => {
+adminTicketsRouter.get("/files/:fileId", validate("params", z.object({ fileId: z.uuid() })), validate("query", z.object({ inline: z.enum(["1"]).optional() })), async (req, res) => {
   const file = unwrap(await db.from("ticket_files").select("*").eq("id", parsed<{ fileId: string }>(req, "params").fileId).maybeSingle(), "That file");
-  res.redirect(302, await fileUrl(file));
+  res.redirect(302, await fileUrl(file, parsed<{ inline?: "1" }>(req, "query").inline === "1"));
 });

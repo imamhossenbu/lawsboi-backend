@@ -1,4 +1,4 @@
-import { GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env.js";
 
@@ -28,11 +28,17 @@ export async function putFile(key: string, body: Buffer, contentType: string) {
   await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
 }
 
-/** A link that downloads the file under `downloadName`, valid for `seconds`. */
-export async function signedFileUrl(key: string, downloadName: string, seconds = 600) {
+/** A link that downloads the file under `downloadName` (or shows it in the browser with `inline`), valid for `seconds`. */
+export async function signedFileUrl(key: string, downloadName: string, seconds = 600, inline = false) {
   const { s3, bucket } = bucketClient();
-  const disposition = `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`;
+  const disposition = `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(downloadName)}`;
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentDisposition: disposition }), { expiresIn: seconds });
+}
+
+/** Removes a file (an unsent chat message's attachment). Missing files are fine. */
+export async function deleteFile(key: string) {
+  const { s3, bucket } = bucketClient();
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 /** For the health page: the bucket answers. Returns its name. */

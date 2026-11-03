@@ -4,7 +4,7 @@ export const auditActions = {
   users: ["user.add", "user.deactivate", "user.activate", "user.export"],
   plans: ["plan.create", "plan.edit", "plan.activate", "plan.deactivate", "plan.default", "plan.duplicate", "plan.delete", "subscription.renewOn", "subscription.renewOff"],
   payments: ["payment.verify", "payment.reject", "payment.refund", "payment.export"],
-  support: ["ticket.create", "ticket.assign", "ticket.unassign", "ticket.status", "ticket.priority", "ticket.category", "ticket.reply", "ticket.note"],
+  support: ["ticket.create", "ticket.assign", "ticket.unassign", "ticket.status", "ticket.priority", "ticket.category", "ticket.reply", "ticket.note", "ticket.message.edit", "ticket.message.unsend"],
   content: ["article.create", "article.edit", "article.publish", "article.unpublish", "article.move", "article.delete", "faq.create", "faq.edit", "faq.publish", "faq.unpublish", "faq.move", "faq.delete", "page.edit"],
   laws: ["law.create", "law.edit", "law.section", "law.translate", "law.untranslate", "law.publish", "law.unpublish", "case.create", "case.edit", "case.link", "case.unlink"],
   assistant: ["assistant.limits", "assistant.flag", "assistant.unflag"],

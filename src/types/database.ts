@@ -215,6 +215,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"contact_messages": {
+                  Row: {
+                    "created_at": string,"email": string,"id": string,"ip": string | null,"lang": Database["public"]['Enums']["lang"],"message": string,"name": string,"number": number,"phone": string,"public_id": string,"read_at": string | null,"replied_at": string | null,"replied_by": string | null,"reply": string | null,"status": Database["public"]['Enums']["contact_status"],"subject": string,"topic": string,"updated_at": string,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"email": string,"id"?: string,"ip"?: string | null,"lang"?: Database["public"]['Enums']["lang"],"message": string,"name": string,"number"?: never,"phone"?: string,"public_id"?: never,"read_at"?: string | null,"replied_at"?: string | null,"replied_by"?: string | null,"reply"?: string | null,"status"?: Database["public"]['Enums']["contact_status"],"subject"?: string,"topic"?: string,"updated_at"?: string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"email"?: string,"id"?: string,"ip"?: string | null,"lang"?: Database["public"]['Enums']["lang"],"message"?: string,"name"?: string,"number"?: never,"phone"?: string,"public_id"?: never,"read_at"?: string | null,"replied_at"?: string | null,"replied_by"?: string | null,"reply"?: string | null,"status"?: Database["public"]['Enums']["contact_status"],"subject"?: string,"topic"?: string,"updated_at"?: string,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "contact_messages_replied_by_fkey"
+      columns: ["replied_by"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "contact_messages_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"email_otps": {
                   Row: {
                     "attempts": number,"code_hash": string,"consumed_at": string | null,"created_at": string,"email": string,"expires_at": string,"id": string,"purpose": Database["public"]['Enums']["otp_purpose"]
@@ -509,6 +535,46 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"news_posts": {
+                  Row: {
+                    "author_id": string | null,"body": string,"body_bn": string,"category": string,"cover_url": string | null,"created_at": string,"id": string,"number": number,"pinned": boolean,"public_id": string,"published_at": string | null,"slug": string,"source_name": string | null,"source_url": string | null,"status": Database["public"]['Enums']["content_status"],"summary": string,"summary_bn": string,"title": string,"title_bn": string,"updated_at": string,"views": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "author_id"?: string | null,"body"?: string,"body_bn"?: string,"category"?: string,"cover_url"?: string | null,"created_at"?: string,"id"?: string,"number"?: never,"pinned"?: boolean,"public_id"?: never,"published_at"?: string | null,"slug": string,"source_name"?: string | null,"source_url"?: string | null,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string,"summary_bn"?: string,"title": string,"title_bn"?: string,"updated_at"?: string,"views"?: number
+                  }
+                  Update: {
+                    "author_id"?: string | null,"body"?: string,"body_bn"?: string,"category"?: string,"cover_url"?: string | null,"created_at"?: string,"id"?: string,"number"?: never,"pinned"?: boolean,"public_id"?: never,"published_at"?: string | null,"slug"?: string,"source_name"?: string | null,"source_url"?: string | null,"status"?: Database["public"]['Enums']["content_status"],"summary"?: string,"summary_bn"?: string,"title"?: string,"title_bn"?: string,"updated_at"?: string,"views"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "news_posts_author_id_fkey"
+      columns: ["author_id"]
+isOneToOne: false
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"payment_sms": {
+                  Row: {
+                    "amount": number | null,"body": string,"from_number": string | null,"id": string,"method": Database["public"]['Enums']["payment_method"] | null,"note": string | null,"payment_id": string | null,"received_at": string,"sender": string,"source": string,"status": Database["public"]['Enums']["sms_status"],"trx_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount"?: number | null,"body": string,"from_number"?: string | null,"id"?: string,"method"?: Database["public"]['Enums']["payment_method"] | null,"note"?: string | null,"payment_id"?: string | null,"received_at"?: string,"sender"?: string,"source": string,"status"?: Database["public"]['Enums']["sms_status"],"trx_id"?: string | null
+                  }
+                  Update: {
+                    "amount"?: number | null,"body"?: string,"from_number"?: string | null,"id"?: string,"method"?: Database["public"]['Enums']["payment_method"] | null,"note"?: string | null,"payment_id"?: string | null,"received_at"?: string,"sender"?: string,"source"?: string,"status"?: Database["public"]['Enums']["sms_status"],"trx_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payment_sms_payment_id_fkey"
+      columns: ["payment_id"]
+isOneToOne: false
+      referencedRelation: "payments"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"payments": {
                   Row: {
                     "amount": number,"created_at": string,"cycle": Database["public"]['Enums']["billing_cycle"],"id": string,"method": Database["public"]['Enums']["payment_method"],"number": number,"plan_id": string,"public_id": string,"reason": Database["public"]['Enums']["reject_reason"] | null,"refunded_at": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"status": Database["public"]['Enums']["payment_status"],"submitted_at": string,"subscription_id": string | null,"trx_id": string,"updated_at": string,"user_id": string
@@ -584,6 +650,26 @@ isOneToOne: true
       columns: ["plan_id"]
 isOneToOne: false
       referencedRelation: "plans"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"reader_notifications": {
+                  Row: {
+                    "body": string,"body_bn": string,"created_at": string,"id": string,"kind": string,"link": string | null,"read_at": string | null,"title": string,"title_bn": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "body"?: string,"body_bn"?: string,"created_at"?: string,"id"?: string,"kind": string,"link"?: string | null,"read_at"?: string | null,"title": string,"title_bn": string,"user_id": string
+                  }
+                  Update: {
+                    "body"?: string,"body_bn"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"link"?: string | null,"read_at"?: string | null,"title"?: string,"title_bn"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "reader_notifications_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
       referencedColumns: ["id"]
     }
                   ]
@@ -795,17 +881,23 @@ isOneToOne: false
                   ]
                 },"ticket_messages": {
                   Row: {
-                    "author_id": string | null,"author_kind": Database["public"]['Enums']["actor_kind"],"body": string,"created_at": string,"id": string,"kind": Database["public"]['Enums']["message_kind"],"ticket_id": string
+                    "author_id": string | null,"author_kind": Database["public"]['Enums']["actor_kind"],"body": string,"created_at": string,"deleted_at": string | null,"edited_at": string | null,"id": string,"kind": Database["public"]['Enums']["message_kind"],"reply_to": string | null,"ticket_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "author_id"?: string | null,"author_kind": Database["public"]['Enums']["actor_kind"],"body": string,"created_at"?: string,"id"?: string,"kind": Database["public"]['Enums']["message_kind"],"ticket_id": string
+                    "author_id"?: string | null,"author_kind": Database["public"]['Enums']["actor_kind"],"body": string,"created_at"?: string,"deleted_at"?: string | null,"edited_at"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["message_kind"],"reply_to"?: string | null,"ticket_id": string
                   }
                   Update: {
-                    "author_id"?: string | null,"author_kind"?: Database["public"]['Enums']["actor_kind"],"body"?: string,"created_at"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["message_kind"],"ticket_id"?: string
+                    "author_id"?: string | null,"author_kind"?: Database["public"]['Enums']["actor_kind"],"body"?: string,"created_at"?: string,"deleted_at"?: string | null,"edited_at"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["message_kind"],"reply_to"?: string | null,"ticket_id"?: string
                   }
                   Relationships: [
                     {
+      foreignKeyName: "ticket_messages_reply_to_fkey"
+      columns: ["reply_to"]
+isOneToOne: false
+      referencedRelation: "ticket_messages"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "ticket_messages_ticket_id_fkey"
       columns: ["ticket_id"]
 isOneToOne: false
@@ -815,14 +907,14 @@ isOneToOne: false
                   ]
                 },"tickets": {
                   Row: {
-                    "assignee_id": string | null,"category": Database["public"]['Enums']["ticket_category"],"created_at": string,"id": string,"lang": Database["public"]['Enums']["lang"],"last_message_at": string,"number": number,"priority": Database["public"]['Enums']["ticket_priority"],"public_id": string,"resolved_at": string | null,"status": Database["public"]['Enums']["ticket_status"],"subject": string,"updated_at": string,"user_id": string
+                    "assignee_id": string | null,"category": Database["public"]['Enums']["ticket_category"],"created_at": string,"id": string,"lang": Database["public"]['Enums']["lang"],"last_message_at": string,"number": number,"priority": Database["public"]['Enums']["ticket_priority"],"public_id": string,"reader_seen_at": string | null,"resolved_at": string | null,"status": Database["public"]['Enums']["ticket_status"],"subject": string,"team_seen_at": string | null,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "assignee_id"?: string | null,"category"?: Database["public"]['Enums']["ticket_category"],"created_at"?: string,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"last_message_at"?: string,"number"?: never,"priority"?: Database["public"]['Enums']["ticket_priority"],"public_id"?: never,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["ticket_status"],"subject": string,"updated_at"?: string,"user_id": string
+                    "assignee_id"?: string | null,"category"?: Database["public"]['Enums']["ticket_category"],"created_at"?: string,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"last_message_at"?: string,"number"?: never,"priority"?: Database["public"]['Enums']["ticket_priority"],"public_id"?: never,"reader_seen_at"?: string | null,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["ticket_status"],"subject": string,"team_seen_at"?: string | null,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "assignee_id"?: string | null,"category"?: Database["public"]['Enums']["ticket_category"],"created_at"?: string,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"last_message_at"?: string,"number"?: never,"priority"?: Database["public"]['Enums']["ticket_priority"],"public_id"?: never,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["ticket_status"],"subject"?: string,"updated_at"?: string,"user_id"?: string
+                    "assignee_id"?: string | null,"category"?: Database["public"]['Enums']["ticket_category"],"created_at"?: string,"id"?: string,"lang"?: Database["public"]['Enums']["lang"],"last_message_at"?: string,"number"?: never,"priority"?: Database["public"]['Enums']["ticket_priority"],"public_id"?: never,"reader_seen_at"?: string | null,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["ticket_status"],"subject"?: string,"team_seen_at"?: string | null,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -964,7 +1056,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "actor_kind": "reader"|"team"|"system","announcement_channel": "in_app"|"email"|"banner","announcement_status": "draft"|"scheduled"|"sent","billing_cycle": "monthly"|"yearly","content_status": "draft"|"published","lang": "en"|"bn","message_kind": "reader"|"reply"|"note","notification_topic": "legal"|"cases"|"saved"|"ai"|"billing"|"product","otp_purpose": "signup"|"reset","payment_method": "bkash"|"nagad","payment_status": "verified"|"awaiting"|"rejected"|"refunded","reject_reason": "not_found"|"amount"|"duplicate","subscription_status": "active"|"past_due"|"canceled","team_role": "admin"|"editor"|"support","ticket_category": "account"|"billing"|"content"|"ai"|"technical"|"other","ticket_event_kind": "created"|"assigned"|"unassigned"|"status"|"priority"|"category"|"reply"|"note","ticket_priority": "low"|"medium"|"high"|"urgent","ticket_status": "open"|"progress"|"waiting"|"resolved"|"closed"
+            "actor_kind": "reader"|"team"|"system","announcement_channel": "in_app"|"email"|"banner","announcement_status": "draft"|"scheduled"|"sent","billing_cycle": "monthly"|"yearly","contact_status": "new"|"read"|"replied"|"archived","content_status": "draft"|"published","lang": "en"|"bn","message_kind": "reader"|"reply"|"note","notification_topic": "legal"|"cases"|"saved"|"ai"|"billing"|"product","otp_purpose": "signup"|"reset","payment_method": "bkash"|"nagad","payment_status": "verified"|"awaiting"|"rejected"|"refunded","reject_reason": "not_found"|"amount"|"duplicate","sms_status": "matched"|"unmatched"|"ignored"|"duplicate","subscription_status": "active"|"past_due"|"canceled","team_role": "admin"|"editor"|"support","ticket_category": "account"|"billing"|"content"|"ai"|"technical"|"other","ticket_event_kind": "created"|"assigned"|"unassigned"|"status"|"priority"|"category"|"reply"|"note","ticket_priority": "low"|"medium"|"high"|"urgent","ticket_status": "open"|"progress"|"waiting"|"resolved"|"closed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -1080,7 +1172,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "actor_kind": ["reader", "team", "system"],"announcement_channel": ["in_app", "email", "banner"],"announcement_status": ["draft", "scheduled", "sent"],"billing_cycle": ["monthly", "yearly"],"content_status": ["draft", "published"],"lang": ["en", "bn"],"message_kind": ["reader", "reply", "note"],"notification_topic": ["legal", "cases", "saved", "ai", "billing", "product"],"otp_purpose": ["signup", "reset"],"payment_method": ["bkash", "nagad"],"payment_status": ["verified", "awaiting", "rejected", "refunded"],"reject_reason": ["not_found", "amount", "duplicate"],"subscription_status": ["active", "past_due", "canceled"],"team_role": ["admin", "editor", "support"],"ticket_category": ["account", "billing", "content", "ai", "technical", "other"],"ticket_event_kind": ["created", "assigned", "unassigned", "status", "priority", "category", "reply", "note"],"ticket_priority": ["low", "medium", "high", "urgent"],"ticket_status": ["open", "progress", "waiting", "resolved", "closed"]
+            "actor_kind": ["reader", "team", "system"],"announcement_channel": ["in_app", "email", "banner"],"announcement_status": ["draft", "scheduled", "sent"],"billing_cycle": ["monthly", "yearly"],"contact_status": ["new", "read", "replied", "archived"],"content_status": ["draft", "published"],"lang": ["en", "bn"],"message_kind": ["reader", "reply", "note"],"notification_topic": ["legal", "cases", "saved", "ai", "billing", "product"],"otp_purpose": ["signup", "reset"],"payment_method": ["bkash", "nagad"],"payment_status": ["verified", "awaiting", "rejected", "refunded"],"reject_reason": ["not_found", "amount", "duplicate"],"sms_status": ["matched", "unmatched", "ignored", "duplicate"],"subscription_status": ["active", "past_due", "canceled"],"team_role": ["admin", "editor", "support"],"ticket_category": ["account", "billing", "content", "ai", "technical", "other"],"ticket_event_kind": ["created", "assigned", "unassigned", "status", "priority", "category", "reply", "note"],"ticket_priority": ["low", "medium", "high", "urgent"],"ticket_status": ["open", "progress", "waiting", "resolved", "closed"]
           }
         }
 } as const

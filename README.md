@@ -94,7 +94,8 @@ route, its permission, body and response shape.
 | `POST /auth/forgot` `{ email, lang }` → `POST /auth/reset` `{ email, code, password }` | Password reset. |
 | `GET /me`, `PATCH /me`, `POST /me/password`, `DELETE /me` `{ password }` | The profile, its settings, the password; deleting the account. |
 | `GET /support/tickets?status=open\|closed&page=`, `GET /support/tickets/count`, `POST /support/tickets` (multipart) | The reader's tickets, their counts; a new one. |
-| `GET /support/tickets/:id`, `POST …/:id/messages`, `POST …/:id/close`, `POST …/:id/reopen` | One ticket. |
+| `GET /support/tickets/:id`, `POST …/:id/messages` (`message`, `replyTo?`, files), `POST …/:id/close`, `POST …/:id/reopen` | One ticket, as a chat: each message carries `replyTo`, `editedAt`, `deleted`; `seenByTeamAt` marks what the team has seen. Reading it marks the team's replies seen. |
+| `PATCH /support/tickets/:id/messages/:messageId` `{ message }`, `DELETE …` | Edit one's own message (15 minutes) or unsend it (two days: text and files removed, a placeholder stays). |
 | `GET /support/files/:fileId` | Redirects to a 10-minute link to an attachment. |
 
 ### The team
@@ -113,7 +114,8 @@ route, its permission, body and response shape.
 | `GET /admin/tickets/:id` | support.view | Conversation, notes, files and history. |
 | `PATCH /admin/tickets/:id` `{ status?, priority?, category?, assignee? }` | support.status / support.assign | `assignee` is `"me"`, a team id or `null`. |
 | `POST /admin/tickets/bulk` `{ ids, change }` | as above | The same change on several tickets. |
-| `POST /admin/tickets/:id/messages` (multipart) `{ kind: "reply"\|"note", text, then? }` | support.reply / support.note | A reply emails the reader and can move the status (`then`). |
+| `POST /admin/tickets/:id/messages` (multipart) `{ kind: "reply"\|"note", text, replyTo?, then?, withSignOff? }` | support.reply / support.note | A chat message; a reply is emailed only when the reader hasn't had the chat open in the last 90 s, and always lands in their bell. |
+| `PATCH /admin/tickets/:id/messages/:messageId` `{ text }`, `DELETE …` | support.view | Edit (15 min) or unsend (2 days) one's own reply or note; audited. |
 | `GET /admin/tickets/files/:fileId` | support.view | Redirects to a link to an attachment. |
 
 Admins hold every permission; other roles start from `presets` in `src/modules/admin/team/permissions.ts`, which

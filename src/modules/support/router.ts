@@ -5,8 +5,8 @@ import { parsed, validate } from "../../middleware/validate.js";
 import { forbidden, notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import type { TicketRow } from "../../types/rows.js";
-import { newTicketSchema, pageQuery, readerMessageSchema, ticketIdParam } from "./schemas.js";
-import { addMessage, changeField, createTicket, fileUrl, isDone, loadTicket, type TicketFull } from "./service.js";
+import { editMessageSchema, messageIdParam, newTicketSchema, pageQuery, readerMessageSchema, ticketIdParam } from "./schemas.js";
+import { addMessage, changeField, createTicket, editMessage, fileUrl, isDone, loadTicket, markSeen, unsendMessage, type TicketFull } from "./service.js";
 import { attachments } from "./upload.js";
 
 // The reader's side of support: their own tickets, what the team replied, and their attachments. Internal notes
@@ -21,15 +21,23 @@ function readerTicketOf(full: TicketFull) {
   const { ticket, messages, files, events } = full;
   const filesByMessage = new Map<string, typeof files>();
   for (const f of files) filesByMessage.set(f.message_id, [...(filesByMessage.get(f.message_id) ?? []), f]);
-  const thread = messages
-    .filter((m) => m.kind !== "note")
-    .map((m) => ({
+  const visible = messages.filter((m) => m.kind !== "note");
+  const byId = new Map(visible.map((m) => [m.id, m]));
+  const thread = visible.map((m) => {
+    const quoted = m.reply_to ? byId.get(m.reply_to) : undefined;
+    return {
       id: m.id,
       at: m.created_at,
       author: m.kind === "reader" ? ("you" as const) : ("team" as const),
       text: m.body,
       files: (filesByMessage.get(m.id) ?? []).map((f) => ({ id: f.id, name: f.name, size: f.size, type: f.mime })),
-    }));
+      editedAt: m.edited_at,
+      deleted: !!m.deleted_at,
+      replyTo: quoted
+        ? { id: quoted.id, author: quoted.kind === "reader" ? ("you" as const) : ("team" as const), text: quoted.deleted_at ? "" : quoted.body.slice(0, 200), deleted: !!quoted.deleted_at, files: (filesByMessage.get(quoted.id) ?? []).length }
+        : null,
+    };
+  });
   // Closings and reopenings show in the thread, as the reader site draws them
   const changes = events
     .filter((e) => e.kind === "status" && (isDone(e.to_value as never) !== isDone(e.from_value as never)))
@@ -43,6 +51,8 @@ function readerTicketOf(full: TicketFull) {
     createdAt: ticket.created_at,
     updatedAt: ticket.updated_at,
     messages: [...thread, ...changes].sort((a, b) => a.at.localeCompare(b.at)),
+    // The reader's messages before this were seen by the team
+    seenByTeamAt: ticket.team_seen_at,
   };
 }
 
@@ -87,16 +97,31 @@ supportRouter.post("/tickets", attachments, validate("body", newTicketSchema), a
   res.status(201).json({ ticket: readerTicketOf(full) });
 });
 
+/** One ticket. The chat polls it every few seconds while open, which also marks the team's replies as seen. */
 supportRouter.get("/tickets/:id", validate("params", ticketIdParam), async (req, res) => {
-  res.json({ ticket: readerTicketOf(await ownTicket(req, parsed<{ id: string }>(req, "params").id)) });
+  res.json({ ticket: readerTicketOf(await markSeen(await ownTicket(req, parsed<{ id: string }>(req, "params").id), "reader")) });
 });
 
 supportRouter.post("/tickets/:id/messages", validate("params", ticketIdParam), attachments, validate("body", readerMessageSchema), async (req, res) => {
   const full = await ownTicket(req, parsed<{ id: string }>(req, "params").id);
   // Writing on a closed ticket reopens it, as the reader site does
   const reopened = isDone(full.ticket.status) ? await changeField(full, "status", "open", { kind: "reader", id: req.reader!.id }) : full;
-  const next = await addMessage(reopened, "reader", req.body.message, (req.files as Express.Multer.File[] | undefined) ?? [], { kind: "reader", id: req.reader!.id });
+  const next = await addMessage(reopened, "reader", req.body.message, (req.files as Express.Multer.File[] | undefined) ?? [], { kind: "reader", id: req.reader!.id }, req.body.replyTo);
   res.status(201).json({ ticket: readerTicketOf(next) });
+});
+
+/** Edits one of the reader's own messages (for 15 minutes after sending). */
+supportRouter.patch("/tickets/:id/messages/:messageId", validate("params", messageIdParam), validate("body", editMessageSchema), async (req, res) => {
+  const { id, messageId } = parsed<{ id: string; messageId: string }>(req, "params");
+  const next = await editMessage(await ownTicket(req, id), messageId, req.body.message, { kind: "reader", id: req.reader!.id });
+  res.json({ ticket: readerTicketOf(next) });
+});
+
+/** Unsends one of the reader's own messages (for two days): text and files go, a placeholder stays. */
+supportRouter.delete("/tickets/:id/messages/:messageId", validate("params", messageIdParam), async (req, res) => {
+  const { id, messageId } = parsed<{ id: string; messageId: string }>(req, "params");
+  const next = await unsendMessage(await ownTicket(req, id), messageId, { kind: "reader", id: req.reader!.id });
+  res.json({ ticket: readerTicketOf(next) });
 });
 
 supportRouter.post("/tickets/:id/close", validate("params", ticketIdParam), async (req, res) => {
@@ -111,11 +136,11 @@ supportRouter.post("/tickets/:id/reopen", validate("params", ticketIdParam), asy
   res.json({ ticket: readerTicketOf(next) });
 });
 
-supportRouter.get("/files/:fileId", validate("params", z.object({ fileId: z.uuid() })), async (req, res) => {
+supportRouter.get("/files/:fileId", validate("params", z.object({ fileId: z.uuid() })), validate("query", z.object({ inline: z.enum(["1"]).optional() })), async (req, res) => {
   const file = unwrap(await db.from("ticket_files").select("*").eq("id", parsed<{ fileId: string }>(req, "params").fileId).maybeSingle(), "That file");
   const ticket = unwrap(await db.from("tickets").select("*").eq("id", file.ticket_id).single());
   if (ticket.user_id !== req.reader!.id) throw forbidden();
   const message = unwrap(await db.from("ticket_messages").select("kind").eq("id", file.message_id).single());
   if (message.kind === "note") throw forbidden();
-  res.redirect(302, await fileUrl(file));
+  res.redirect(302, await fileUrl(file, parsed<{ inline?: "1" }>(req, "query").inline === "1"));
 });
