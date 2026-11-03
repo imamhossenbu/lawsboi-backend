@@ -9,14 +9,16 @@ export const actionCatalogue = {
   plans: ["view", "create", "edit", "activate", "delete", "renewals"],
   payments: ["view", "verify", "reject", "refund", "export"],
   support: ["view", "reply", "note", "assign", "status", "create"],
+  messages: ["view", "reply", "manage"],
   content: ["view", "edit", "publish", "delete"],
   laws: ["view", "add", "edit", "translate", "publish", "cases", "link"],
   assistant: ["view", "manage"],
   announcements: ["view", "write", "send", "endBanner", "delete"],
+  news: ["view", "write", "publish", "delete"],
   flags: ["view", "manage"],
   audit: ["view", "export"],
   health: ["view", "manage"],
-  settings: ["view", "payments", "contact", "team"],
+  settings: ["view", "payments", "contact", "team", "sms"],
 } as const;
 
 type Catalogue = typeof actionCatalogue;
@@ -47,6 +49,9 @@ export const presets: Record<TeamRole, Action[]> = {
     "assistant.view",
     "announcements.view",
     "announcements.write",
+    "news.view",
+    "news.write",
+    "news.publish",
   ],
   support: [
     "dashboard.view",
@@ -61,6 +66,9 @@ export const presets: Record<TeamRole, Action[]> = {
     "support.assign",
     "support.status",
     "support.create",
+    "messages.view",
+    "messages.reply",
+    "messages.manage",
   ],
 };
 

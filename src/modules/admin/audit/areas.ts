@@ -5,13 +5,15 @@ export const auditActions = {
   plans: ["plan.create", "plan.edit", "plan.activate", "plan.deactivate", "plan.default", "plan.duplicate", "plan.delete", "subscription.renewOn", "subscription.renewOff"],
   payments: ["payment.verify", "payment.reject", "payment.refund", "payment.export"],
   support: ["ticket.create", "ticket.assign", "ticket.unassign", "ticket.status", "ticket.priority", "ticket.category", "ticket.reply", "ticket.note", "ticket.message.edit", "ticket.message.unsend"],
+  messages: ["contact.reply", "contact.status"],
   content: ["article.create", "article.edit", "article.publish", "article.unpublish", "article.move", "article.delete", "faq.create", "faq.edit", "faq.publish", "faq.unpublish", "faq.move", "faq.delete", "page.edit"],
   laws: ["law.create", "law.edit", "law.section", "law.translate", "law.untranslate", "law.publish", "law.unpublish", "case.create", "case.edit", "case.link", "case.unlink"],
   assistant: ["assistant.limits", "assistant.flag", "assistant.unflag"],
   flags: ["flag.on", "flag.off", "flag.edit"],
   announcements: ["announcement.draft", "announcement.schedule", "announcement.send", "announcement.unschedule", "announcement.endBanner", "announcement.duplicate", "announcement.delete"],
+  news: ["news.create", "news.edit", "news.publish", "news.unpublish", "news.delete"],
   audit: ["audit.export"],
-  settings: ["settings.accounts", "settings.contact", "team.invite", "team.reinvite", "team.edit", "team.role", "team.permissions", "team.activate", "team.deactivate", "account.profile", "account.password"],
+  settings: ["settings.accounts", "settings.contact", "settings.sms", "sms.match", "team.invite", "team.reinvite", "team.edit", "team.role", "team.permissions", "team.activate", "team.deactivate", "account.profile", "account.password"],
 } as const;
 
 export type AuditArea = keyof typeof auditActions;

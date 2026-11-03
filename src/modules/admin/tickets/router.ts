@@ -121,6 +121,11 @@ adminTicketsRouter.get("/", validate("query", listQuery), async (req, res) => {
 
   const team = await teamDirectory();
   const users = new Map((unwrap(await db.from("profiles").select("*").in("id", [...new Set((data ?? []).map((t) => t.user_id))]))).map((u) => [u.id, u]));
+  // Who wrote last on each ticket (notes left out): the bell and the list flag the reader's unanswered messages
+  const ids = (data ?? []).map((t) => t.id);
+  const recent = ids.length ? unwrap(await db.from("ticket_messages").select("ticket_id,kind,created_at").in("ticket_id", ids).neq("kind", "note").order("created_at", { ascending: false }).limit(ids.length * 4)) : [];
+  const lastBy = new Map<string, { from: "reader" | "team"; at: string }>();
+  for (const m of recent) if (!lastBy.has(m.ticket_id)) lastBy.set(m.ticket_id, { from: m.kind === "reader" ? "reader" : "team", at: m.created_at });
   const tickets = (data ?? []).map((t) => ({
     id: t.public_id,
     subject: t.subject,
@@ -133,6 +138,7 @@ adminTicketsRouter.get("/", validate("query", listQuery), async (req, res) => {
     createdAt: t.created_at,
     updatedAt: t.updated_at,
     resolvedAt: t.resolved_at,
+    lastMessage: lastBy.get(t.id) ?? null,
   }));
   res.json({ tickets, page: q.page, perPage: q.perPage, total: count ?? 0 });
 });
