@@ -85,7 +85,7 @@ export async function currentSubscription(userId: string): Promise<SubscriptionR
 
 /** The money is there: the subscription starts (or, on the same plan, runs on from its renewal date), and the
  * reader's plan switches at once. */
-export async function verifyPayment(payment: PaymentRow, reviewerId: string): Promise<PaymentRow> {
+export async function verifyPayment(payment: PaymentRow, reviewerId: string | null): Promise<PaymentRow> {
   if (payment.status !== "awaiting") throw conflict("That payment has already been reviewed.");
   const now = new Date();
   const current = await currentSubscription(payment.user_id);

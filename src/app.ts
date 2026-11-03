@@ -21,6 +21,8 @@ import { teamRouter } from "./modules/admin/team/router.js";
 import { adminTicketsRouter } from "./modules/admin/tickets/router.js";
 import { adminMessagesRouter } from "./modules/admin/messages/router.js";
 import { contactRouter } from "./modules/contact/router.js";
+import { hooksRouter } from "./modules/hooks/router.js";
+import { adminSmsRouter } from "./modules/admin/sms/router.js";
 import { usersRouter } from "./modules/admin/users/router.js";
 import { assistantRouter } from "./modules/assistant/router.js";
 import { authRouter } from "./modules/auth/router.js";
@@ -51,7 +53,7 @@ export function createApp() {
       logger,
       autoLogging: { ignore: (req) => req.url === "/health" || req.url === "/cron/tick" },
       // One line per request: method, path, status and time; headers and bodies stay out of the log
-      serializers: { req: (r) => ({ method: r.method, url: r.url }), res: (r) => ({ status: r.statusCode }) },
+      serializers: { req: (r) => ({ method: r.method, url: String(r.url).replace(/(\/hooks\/\w+\/)[^/?]+/, "$1***") }), res: (r) => ({ status: r.statusCode }) },
     }),
   );
 
@@ -71,6 +73,7 @@ export function createApp() {
   app.use("/library", libraryRouter);
   app.use("/content", contentRouter);
   app.use("/contact", contactRouter);
+  app.use("/hooks", hooksRouter);
 
   // The admin panel's team
   app.use("/admin/auth", adminAuthRouter);
@@ -83,6 +86,7 @@ export function createApp() {
   app.use("/admin/billing", adminBillingRouter);
   app.use("/admin/dashboard", adminDashboardRouter);
   app.use("/admin/audit", adminAuditRouter);
+  app.use("/admin/settings/sms", adminSmsRouter);
   app.use("/admin/settings", adminSettingsRouter);
   app.use("/admin/health", adminHealthRouter);
   app.use("/admin/content", adminContentRouter);

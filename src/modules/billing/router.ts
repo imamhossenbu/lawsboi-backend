@@ -4,6 +4,8 @@ import { requireReader } from "../../middleware/auth.js";
 import { parsed, validate } from "../../middleware/validate.js";
 import { sendPdf } from "../../lib/pdf/document.js";
 import { invoiceFor } from "./invoice.js";
+import { matchWaitingSms } from "../sms/service.js";
+import { notifyTeam } from "../../lib/telegram.js";
 import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { currentSubscription, featureMatrix, listPlans, setAutoRenew, submitPayment } from "./service.js";
@@ -38,7 +40,11 @@ const checkoutSchema = z.object({
 });
 
 billingRouter.post("/checkout", requireReader, validate("body", checkoutSchema), async (req, res) => {
-  const payment = await submitPayment(req.reader!, req.body);
+  const submitted = await submitPayment(req.reader!, req.body);
+  // The bKash/Nagad SMS may have come first: then the payment is verified right here
+  const payment = await matchWaitingSms(submitted);
+  if (payment.status === "awaiting")
+    void notifyTeam(`💳 New payment to verify ${payment.public_id}: ${req.reader!.name} · ৳${payment.amount} by ${payment.method === "nagad" ? "Nagad" : "bKash"} · ${payment.trx_id}`, "payments");
   res.status(201).json({ payment: paymentOf(payment) });
 });
 

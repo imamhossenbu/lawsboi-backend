@@ -22,6 +22,7 @@ import {
 } from "../../billing/shared.js";
 import { adminUserOf } from "../users/router.js";
 import { notifyPayment } from "./mail.js";
+import { notifyPaymentOutcome } from "../../../lib/notify.js";
 import { invoiceFor } from "../../billing/invoice.js";
 import { sendPdf } from "../../../lib/pdf/document.js";
 import { csvHeaders, toCsv } from "./csv.js";
@@ -377,6 +378,7 @@ async function reviewed(req: Parameters<typeof logAudit>[0], action: "payment.ve
 async function emailOutcome(payment: Tables<"payments">, outcome: "verified" | "rejected") {
   const [reader, plan] = await Promise.all([db.from("profiles").select("*").eq("id", payment.user_id).single(), db.from("plans").select("*").eq("id", payment.plan_id).maybeSingle()]);
   if (reader.data) notifyPayment(payment, reader.data, plan.data, outcome);
+  void notifyPaymentOutcome(payment, outcome, { en: plan.data?.name ?? payment.plan_id, bn: plan.data?.name_bn || plan.data?.name || payment.plan_id });
 }
 
 adminBillingRouter.post("/payments/:id/verify", requirePermission("payments.verify"), validate("params", paymentIdParam), async (req, res) => {

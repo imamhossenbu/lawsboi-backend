@@ -4,6 +4,7 @@ import { badRequest, forbidden, notFound, unwrap } from "../../lib/errors.js";
 import { sendMail } from "../../lib/mail/send.js";
 import { ticketInboxMail, ticketReplyMail } from "../../lib/mail/templates/ticket.js";
 import { deleteFile, putFile, signedFileUrl } from "../../lib/storage.js";
+import { notifyTeam } from "../../lib/telegram.js";
 import { EDIT_WINDOW_MS, UNSEND_WINDOW_MS } from "./schemas.js";
 import { db } from "../../lib/supabase.js";
 import type { TablesUpdate } from "../../types/database.js";
@@ -150,7 +151,10 @@ export async function createTicket(input: NewTicket, actor: Actor): Promise<Tick
   if (input.assigneeId) await addEvent(ticket, "assigned", actor, null, input.assigneeId);
   if (input.status && input.status !== "open") await addEvent(ticket, "status", actor, "open", input.status);
 
-  if (actor.kind === "reader") void notifyInbox(ticket, input.user, input.message, true);
+  if (actor.kind === "reader") {
+    void notifyInbox(ticket, input.user, input.message, true);
+    void notifyTeam(`🎫 New ticket ${ticket.public_id} (${input.priority}): ${input.subject}\nFrom ${input.user.name} <${input.user.email}>\n\n${input.message.slice(0, 800)}`, "tickets");
+  }
   return loadTicketRow(ticket);
 }
 
@@ -175,7 +179,10 @@ export async function addMessage(full: TicketFull, kind: MessageKind, body: stri
     if (!isActive(ticket.reader_seen_at)) void notifyReader(ticket, user, actor.member, body || "📎");
     void notifyReplyInApp(ticket, user, body);
   }
-  if (kind === "reader" && !isActive(ticket.team_seen_at)) void notifyInbox(ticket, user, body || "📎", false);
+  if (kind === "reader" && !isActive(ticket.team_seen_at)) {
+    void notifyInbox(ticket, user, body || "📎", false);
+    void notifyTeam(`💬 ${user.name} wrote on ${ticket.public_id} (${ticket.subject}):\n${(body || "📎 attachment").slice(0, 800)}`, "tickets");
+  }
   return loadTicket(ticket.public_id);
 }
 

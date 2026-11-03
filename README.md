@@ -178,6 +178,23 @@ and Write on that bucket (`keyID` → `S3_ACCESS_KEY_ID`, `applicationKey` → `
 Cloudflare R2 later is only new `S3_*` values. Files uploaded while attachments were in Supabase Storage are
 copied over once with `npx tsx --env-file=.env scripts/move-files-to-storage.ts`.
 
+## SMS verification and the Telegram bot
+
+bKash/Nagad payments can verify themselves (admin → Settings → SMS verification, `src/modules/sms`, `src/lib/telegram.ts`):
+
+- An SMS forwarder app on the merchant phone posts each SMS to `POST /hooks/sms/<secret>` (JSON or form; the text as
+  `text`/`message`/`body`, the sender as `from`/`sender`). `parse.ts` reads the transaction id, amount, payer and wallet
+  (English or Bangla wording; outgoing money and OTPs are ignored). Every SMS lands in `payment_sms`.
+- A matching awaiting payment (same transaction id, at least its price, same wallet) is verified at once when
+  auto-verify is on (`reviewed_by` stays empty), with the usual email + invoice, a bell row and a Telegram line; a
+  payment submitted after its SMS is matched at checkout. Anything off (short amount, other wallet) is linked and the
+  team is told instead; `POST /admin/settings/sms/:id/match` links one by hand.
+- The Telegram bot: the token is checked with `getMe` and its webhook set to `POST /hooks/telegram/<secret>` (Telegram
+  also sends the secret header). `/start` answers with the chat id; in the team's chat it takes pasted/forwarded
+  SMS and `/pending`; it reports payments, contact messages and tickets (`notifyTeam`).
+- Routes: `GET|PUT /admin/settings/sms` (settings.view / settings.sms; the token is write-only), `POST /rotate`,
+  `POST /telegram/test`, `POST /test { text }` (parse only), `GET /inbox?status=`.
+
 ## Hosting and the scheduler
 
 **Vercel** (free Hobby plan, no card): import the repo as a new project, framework preset **Other**, and paste the
