@@ -103,3 +103,26 @@ meRouter.post("/notifications/:id/read", validate("params", z.object({ id: z.uui
   await db.from("reader_notifications").update({ read_at: new Date().toISOString() }).eq("user_id", req.reader!.id).eq("id", String(req.params.id)).is("read_at", null);
   res.status(204).end();
 });
+
+/* ----------------------------------------------------------------- resume */
+
+// Where the reader left off (the page, how far down, its title), so the site can offer "continue where you left
+// off" on any device. Kept in profiles.preferences.resume.
+
+const resumeSchema = z.object({
+  path: z.string().trim().min(1).max(600).regex(/^\/(?!\/)/, "A site path."),
+  title: z.string().trim().max(240).default(""),
+  scroll: z.number().min(0).max(1).default(0),
+});
+
+meRouter.get("/resume", (req, res) => {
+  const prefs = (req.reader!.preferences ?? {}) as { resume?: unknown };
+  res.json({ resume: prefs.resume ?? null });
+});
+
+meRouter.put("/resume", validate("body", resumeSchema), async (req, res) => {
+  const prefs = (req.reader!.preferences ?? {}) as Record<string, unknown>;
+  const resume = { ...(req.body as z.infer<typeof resumeSchema>), at: new Date().toISOString() };
+  await db.from("profiles").update({ preferences: { ...prefs, resume } as never }).eq("id", req.reader!.id);
+  res.json({ resume });
+});
