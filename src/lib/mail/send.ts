@@ -10,6 +10,7 @@ export interface Mail {
   text: string;
   html: string;
   replyTo?: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }
 
 /** Sends one email. Without SMTP, development writes it to the log and reports "logged"; sending never throws,
@@ -21,7 +22,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
     return "logged";
   }
   try {
-    const info = await transport.sendMail({ from: env.smtp.from, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, replyTo: mail.replyTo });
+    const info = await transport.sendMail({ from: env.smtp.from, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, replyTo: mail.replyTo, attachments: mail.attachments });
     logger.info({ to: mail.to, subject: mail.subject, id: info.messageId }, "email sent");
     return "sent";
   } catch (err) {

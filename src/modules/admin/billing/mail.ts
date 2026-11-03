@@ -2,6 +2,7 @@ import { env } from "../../../config/env.js";
 import { sendMail } from "../../../lib/mail/send.js";
 import { button, escape, fill, footnote, layout, row, type Lang } from "../../../lib/mail/templates/layout.js";
 import type { Tables } from "../../../types/database.js";
+import { invoiceFor } from "../../billing/invoice.js";
 
 // Tells the reader what happened to the payment they submitted. Billing email can't be turned off (the reader's
 // notification settings don't apply), as the checkout's confirmation page promises.
@@ -64,5 +65,13 @@ export function paymentMail(payment: Tables<"payments">, planName: { en: string;
 /** Sends it without holding up the team's click; a failure is logged by sendMail. */
 export function notifyPayment(payment: Tables<"payments">, reader: Tables<"profiles">, plan: Tables<"plans"> | null, outcome: "verified" | "rejected") {
   const name = { en: plan?.name ?? payment.plan_id, bn: plan?.name_bn ?? plan?.name ?? payment.plan_id };
-  void sendMail({ to: reader.email, ...paymentMail(payment, name, outcome, reader.lang) });
+  void (async () => {
+    // A verified payment's email carries its invoice; a failure to draw it still sends the email
+    const invoice = outcome === "verified" ? await invoiceFor({ ...payment, status: "verified" }, reader.lang).catch(() => null) : null;
+    await sendMail({
+      to: reader.email,
+      ...paymentMail(payment, name, outcome, reader.lang),
+      ...(invoice ? { attachments: [{ filename: `${invoice.name}.pdf`, content: invoice.bytes, contentType: "application/pdf" }] } : {}),
+    });
+  })();
 }

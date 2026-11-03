@@ -46,3 +46,14 @@ AdminUser = { id: "USR-10047", name: {en,bn}, email, plan, cycle, role: "reader"
 | POST | `/admin/billing/payments/:id/refund` | payments.refund | | `{ payment }`. Cancels its subscription; a reader with no other active one goes back to the default plan. 409 unless verified |
 
 Renewals: `renews` steps a calendar month or year from verification (31 Jan → 28 Feb). Nothing charges automatically — bKash/Nagad are manual — so a lapsed subscription is a product decision for later (a cron that marks `past_due` after `renews` passes).
+
+## Invoices
+
+A verified (or later refunded) payment has an invoice, drawn when it is asked for from the payment's own rows
+(`src/modules/billing/invoice.ts`, `src/lib/pdf/invoice.ts`); its number follows the payment's (`PAY-000042` →
+`INV-000042`). The verification email carries it as an attachment.
+
+| Route | Who | What |
+| --- | --- | --- |
+| `GET /billing/payments/:id/invoice?lang=` | reader (own payments) | The PDF; 409 until the payment is verified. |
+| `GET /admin/billing/payments/:id/invoice?lang=` | payments.view | The same PDF for the team. |

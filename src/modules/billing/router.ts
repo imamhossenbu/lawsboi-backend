@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireReader } from "../../middleware/auth.js";
-import { validate } from "../../middleware/validate.js";
+import { parsed, validate } from "../../middleware/validate.js";
+import { sendPdf } from "../../lib/pdf/document.js";
+import { invoiceFor } from "./invoice.js";
 import { unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { currentSubscription, featureMatrix, listPlans, setAutoRenew, submitPayment } from "./service.js";
@@ -62,4 +64,17 @@ billingRouter.post("/subscription/auto-renew", requireReader, validate("body", z
     return;
   }
   res.json({ subscription: subscriptionOf(await setAutoRenew(current, req.body.autoRenew)) });
+});
+
+const invoiceQuery = z.object({ lang: z.enum(["en", "bn"]).optional(), inline: z.enum(["1"]).optional() });
+
+/** The invoice of one of the reader's verified payments, as a PDF. */
+billingRouter.get("/payments/:id/invoice", requireReader, validate("params", z.object({ id: z.string().regex(/^PAY-\d{6}$/) })), validate("query", invoiceQuery), async (req, res) => {
+  const me = req.reader!;
+  const { id } = parsed<{ id: string }>(req, "params");
+  const q = parsed<z.infer<typeof invoiceQuery>>(req, "query");
+  const payment = await db.from("payments").select("*").eq("public_id", id).eq("user_id", me.id).maybeSingle();
+  const row = unwrap(payment, "That payment");
+  const { bytes, name } = await invoiceFor(row, q.lang ?? me.lang);
+  sendPdf(res, bytes, name, !!q.inline);
 });

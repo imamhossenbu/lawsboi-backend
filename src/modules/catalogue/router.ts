@@ -9,6 +9,9 @@ import { casesQuery, latestQuery, lawsQuery, provisionParam, readSchema, searchQ
 import { searchLaws } from "./search.service.js";
 import { sitemapIndex, sitemapSections } from "./sitemap.service.js";
 import { sectionLabel, text } from "./shared.js";
+import { sendPdf } from "../../lib/pdf/document.js";
+import { judgmentPdf } from "../../lib/pdf/judgment.js";
+import { lawPdf } from "../../lib/pdf/law.js";
 
 // Public: laws, sections, judgments and search, as the reader site reads them. No sign-in; only published rows.
 
@@ -104,6 +107,36 @@ catalogueRouter.get("/cases/latest", validate("query", latestQuery), async (req,
 
 catalogueRouter.get("/cases/:slug", validate("params", slugParam), async (req, res) => {
   res.json({ case: await getCase(parsed<{ slug: string }>(req, "params").slug) });
+});
+
+/* -------------------------------------------------------------------- PDF */
+
+const pdfQuery = z.object({
+  lang: z.enum(["en", "bn"]).default("en"),
+  // Only these sections (one section's page, or one page of the bare-act book); the whole law without it
+  sections: z
+    .string()
+    .max(4000)
+    .optional()
+    .transform((v) => (v ? new Set(v.split(",").map((s) => s.trim()).filter(Boolean)) : undefined)),
+});
+const pdfLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
+
+/** The law as a PDF, whole or a few sections, in the reader's language. */
+catalogueRouter.get("/laws/:slug/pdf", pdfLimiter, validate("params", slugParam), validate("query", pdfQuery), async (req, res) => {
+  const { slug } = parsed<{ slug: string }>(req, "params");
+  const q = parsed<z.infer<typeof pdfQuery>>(req, "query");
+  const [detail, body] = await Promise.all([getLaw(slug), getActText(slug)]);
+  const { bytes, name } = await lawPdf(detail.law, body, q.lang, q.sections?.size ? q.sections : undefined);
+  sendPdf(res, bytes, name);
+});
+
+/** A judgment as a PDF. */
+catalogueRouter.get("/cases/:slug/pdf", pdfLimiter, validate("params", slugParam), validate("query", pdfQuery.pick({ lang: true })), async (req, res) => {
+  const { slug } = parsed<{ slug: string }>(req, "params");
+  const { lang } = parsed<{ lang: "en" | "bn" }>(req, "query");
+  const { bytes, name } = await judgmentPdf(await getCase(slug), lang);
+  sendPdf(res, bytes, name);
 });
 
 /* ---------------------------------------------------------------- sitemap */

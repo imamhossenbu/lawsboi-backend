@@ -82,3 +82,14 @@ replaces their parts, sections, Orders, Rules and citations, so it can be run ag
 Search runs in Postgres: `law_sections`, `law_rules`, `laws` and `judgments` carry a `search` tsvector
 (`simple` configuration, Bangla digits folded to ASCII) with GIN indexes, queried through the `search_provisions`,
 `search_laws` and `search_judgments` functions.
+
+## PDFs
+
+| Route | What |
+| --- | --- |
+| `GET /catalogue/laws/:slug/pdf?lang=en\|bn&sections=9,10` | The law as an A4 PDF (`src/lib/pdf/law.ts`): the title block, then every part and section. `sections` limits it to those sections (one section's page, or the bare-act book's open page). In Bangla the unofficial translation comes first with the enacted English under it. 20 a minute per address. |
+| `GET /catalogue/cases/:slug/pdf?lang=en\|bn` | A judgment as a PDF: its particulars, then the numbered paragraphs (the translation in Bangla where one exists). |
+
+Every PDF is drawn by `src/lib/pdf/document.ts` with Noto Serif and Noto Serif Bengali (`assets/fonts`, OFL; `vercel.json`
+includes them in the function). Text that mixes scripts is split into runs so each gets a font with its glyphs, and
+fontkit shapes the Bangla conjuncts. The reader site downloads and prints these same files.

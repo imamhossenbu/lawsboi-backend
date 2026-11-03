@@ -22,6 +22,8 @@ import {
 } from "../../billing/shared.js";
 import { adminUserOf } from "../users/router.js";
 import { notifyPayment } from "./mail.js";
+import { invoiceFor } from "../../billing/invoice.js";
+import { sendPdf } from "../../../lib/pdf/document.js";
 import { csvHeaders, toCsv } from "./csv.js";
 
 // The team's Plans & subscriptions and Payments pages.
@@ -397,4 +399,11 @@ adminBillingRouter.post("/payments/:id/refund", requirePermission("payments.refu
   const before = await findPayment(parsed<{ id: string }>(req, "params").id);
   const after = await refundPayment(before);
   res.json({ payment: await reviewed(req, "payment.refund", before, after) });
+});
+
+/** A verified payment's invoice, as the reader gets it. */
+adminBillingRouter.get("/payments/:id/invoice", requirePermission("payments.view"), validate("params", paymentIdParam), validate("query", z.object({ lang: z.enum(["en", "bn"]).optional() })), async (req, res) => {
+  const payment = await findPayment(parsed<{ id: string }>(req, "params").id);
+  const { bytes, name } = await invoiceFor(payment, parsed<{ lang?: "en" | "bn" }>(req, "query").lang ?? "en");
+  sendPdf(res, bytes, name);
 });
