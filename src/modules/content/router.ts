@@ -1,3 +1,4 @@
+import { verifyAccessToken } from "../../lib/accounts.js";
 import { Router } from "express";
 import { z } from "zod";
 import { requireReader } from "../../middleware/auth.js";
@@ -24,8 +25,8 @@ const slugParam = z.object({ slug: z.string().regex(/^[a-z0-9-]{1,60}$/) });
 /** The signed-in reader behind an optional token, or null; a bad token is just "signed out" here. */
 async function optionalReaderId(authorization: string | undefined) {
   if (!authorization?.startsWith("Bearer ")) return null;
-  const { data } = await db.auth.getUser(authorization.slice(7));
-  return data.user?.id ?? null;
+  const user = await verifyAccessToken(authorization.slice(7)).catch(() => null);
+  return user?.id ?? null;
 }
 
 /** One article; with a reader's token, `myVote` is their earlier answer to "Was this helpful?" (null when none). */

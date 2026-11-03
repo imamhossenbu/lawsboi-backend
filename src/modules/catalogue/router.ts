@@ -1,3 +1,4 @@
+import { verifyAccessToken } from "../../lib/accounts.js";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
@@ -230,7 +231,7 @@ export function seenRecently(key: string, now = Date.now()) {
 catalogueRouter.post("/reads", reads, validate("body", readSchema), async (req, res) => {
   const b = req.body as z.infer<typeof readSchema>;
   const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : null;
-  const user = token ? (await db.auth.getUser(token)).data.user?.id ?? null : null;
+  const user = token ? ((await verifyAccessToken(token).catch(() => null))?.id ?? null) : null;
   const viewer = user ?? `ip:${req.ip ?? "unknown"}`;
   if (seenRecently(`${viewer}|${b.kind}|${b.slug}|${b.n ?? ""}`)) {
     res.status(202).json({ ok: true, counted: false });

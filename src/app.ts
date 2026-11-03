@@ -22,6 +22,8 @@ import { adminTicketsRouter } from "./modules/admin/tickets/router.js";
 import { adminMessagesRouter } from "./modules/admin/messages/router.js";
 import { contactRouter } from "./modules/contact/router.js";
 import { hooksRouter } from "./modules/hooks/router.js";
+import { newsRouter } from "./modules/news/router.js";
+import { adminNewsRouter } from "./modules/admin/news/router.js";
 import { adminSmsRouter } from "./modules/admin/sms/router.js";
 import { usersRouter } from "./modules/admin/users/router.js";
 import { assistantRouter } from "./modules/assistant/router.js";
@@ -74,6 +76,7 @@ export function createApp() {
   app.use("/content", contentRouter);
   app.use("/contact", contactRouter);
   app.use("/hooks", hooksRouter);
+  app.use("/news", newsRouter);
 
   // The admin panel's team
   app.use("/admin/auth", adminAuthRouter);
@@ -81,6 +84,7 @@ export function createApp() {
   app.use("/admin/users", usersRouter);
   app.use("/admin/tickets", adminTicketsRouter);
   app.use("/admin/messages", adminMessagesRouter);
+  app.use("/admin/news", adminNewsRouter);
   app.use("/admin/catalogue", adminCatalogueRouter);
   app.use("/admin/assistant", adminAssistantRouter);
   app.use("/admin/billing", adminBillingRouter);

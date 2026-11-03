@@ -68,6 +68,8 @@ route, its permission, body and response shape.
 | Wallets, contact details | `/admin/settings` | team (settings.*) | [settings.md](docs/settings.md) |
 | System health | `/admin/health` | team (health.*) | [health.md](docs/health.md) |
 | Contact page messages | `POST /contact/messages` (public, 6 an hour), `/admin/messages` | public, team (messages.*) | `{ name, email, phone?, topic, subject?, message, lang }` → `{ id: "MSG-000001" }`, copied to the support inbox and the team's Telegram. The team: `GET /admin/messages?status=open\|new\|read\|replied\|archived\|all&q=&page=` (with `counts`), `GET /:id` (marks read), `PATCH /:id { status }`, `POST /:id/reply { text }` (emailed, the original quoted) |
+| Legal news | `/news`, `/admin/news` | public, team (news.*) | `GET /news?category=&page=` (published, pinned first), `GET /news/:slug` (with `more`), `POST /news/:slug/read`. The team: list with `stats.lastPublishedAt`, create, `PATCH`, `POST /:id/publish { published }` (the first publish puts it in the bell of readers taking legal updates in the app), `DELETE` |
+| A reader's notifications | `GET /me/notifications`, `POST /me/notifications/read-all`, `POST /me/notifications/:id/read` | reader | Ticket replies, payment outcomes and news (`reader_notifications`), beside the announcements |
 | Global search (the reader site's top bar) | `GET /search?q=&limit=` | public | `{ q, laws, provisions, cases, articles }`, each `{ id, href, title: {en,bn}, meta: {en,bn} }[]` (best `limit`, default 5) |
 | Liveness | `GET /health` | public | `{ ok, time }` |
 | Scheduled work | `GET`/`POST /cron/tick` | `Authorization: Bearer <CRON_SECRET>` | see Hosting below |

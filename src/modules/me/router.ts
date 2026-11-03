@@ -65,3 +65,41 @@ meRouter.delete("/", validate("body", z.object({ password: z.string().min(1) }))
   await deleteAccount(req.reader!.email, req.reader!.id, req.body.password);
   res.status(204).end();
 });
+
+/* ---------------------------------------------------------- notifications */
+
+// The reader's own notifications (ticket replies, payment outcomes, legal news) beside the announcements in the
+// bell, newest first. Opening one marks it read; "mark all read" clears the badge.
+
+const noticeQuery = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30) });
+
+meRouter.get("/notifications", validate("query", noticeQuery), async (req, res) => {
+  const { limit } = noticeQuery.parse(req.query);
+  const me = req.reader!.id;
+  const [rows, unread] = await Promise.all([
+    db.from("reader_notifications").select("*").eq("user_id", me).order("created_at", { ascending: false }).limit(limit),
+    db.from("reader_notifications").select("id", { count: "exact", head: true }).eq("user_id", me).is("read_at", null),
+  ]);
+  res.json({
+    notifications: unwrap(rows).map((n) => ({
+      id: n.id,
+      kind: n.kind,
+      title: { en: n.title, bn: n.title_bn },
+      body: { en: n.body, bn: n.body_bn },
+      link: n.link,
+      at: n.created_at,
+      read: !!n.read_at,
+    })),
+    unread: unread.count ?? 0,
+  });
+});
+
+meRouter.post("/notifications/read-all", async (req, res) => {
+  await db.from("reader_notifications").update({ read_at: new Date().toISOString() }).eq("user_id", req.reader!.id).is("read_at", null);
+  res.status(204).end();
+});
+
+meRouter.post("/notifications/:id/read", validate("params", z.object({ id: z.uuid() })), async (req, res) => {
+  await db.from("reader_notifications").update({ read_at: new Date().toISOString() }).eq("user_id", req.reader!.id).eq("id", String(req.params.id)).is("read_at", null);
+  res.status(204).end();
+});
