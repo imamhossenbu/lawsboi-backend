@@ -80,7 +80,7 @@ adminAiRouter.post("/tidy", requireAny("content.edit", "laws.edit", "announcemen
 }));
 
 /** The one-field AI menu: { task: toBn | toEn | polish, text: { en, bn } } → { text: { en, bn } }. */
-adminAiRouter.post("/assist", requireAny("content.edit", "announcements.write"), validate("body", assistBody), handle(async (req, res) => {
+adminAiRouter.post("/assist", requireAny("content.edit", "announcements.write", "news.write"), validate("body", assistBody), handle(async (req, res) => {
   const b = req.body as z.infer<typeof assistBody>;
   res.json({ text: await ai.assist(b.task, b.text, caller(req)) });
 }));
