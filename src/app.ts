@@ -40,7 +40,10 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGINS, credentials: false }));
-  app.use(express.json({ limit: "1mb" }));
+  // The assistant takes a few small images inline (the reader site shrinks them first); everything else 1 MB
+  const json = express.json({ limit: "1mb" });
+  const assistantJson = express.json({ limit: "5mb" });
+  app.use((req, res, next) => (req.path === "/assistant/ask" ? assistantJson : json)(req, res, next));
   app.use(
     pinoHttp({
       logger,

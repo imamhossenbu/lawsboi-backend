@@ -201,3 +201,62 @@ export function assertAllowance(u: { used: number; limit: number | null }) {
     throw new HttpError("forbidden", "You've used this month's questions. Upgrade your plan or wait for the month to end.", { allowance: "exhausted" });
   }
 }
+
+/* ---------------------------------------------------------------- pinned */
+
+/** What the reader asked from: a law, one of its sections, or a judgment. */
+export type AskContext = { kind: "law"; slug: string; n?: string } | { kind: "case"; slug: string };
+
+/** The page the reader asked from, as a source that leads the answer's list; null when it can't be found. A law
+ * without a section stands for its first sections' worth of text through its long title. */
+export async function pinnedSource(ctx: AskContext): Promise<{ hit: SourceHit; ref: SourceRef } | null> {
+  if (ctx.kind === "case") {
+    const { data: j } = await db.from("judgments").select("slug,title,title_tr,citation,case_no,court,excerpt,published").eq("slug", ctx.slug).maybeSingle();
+    if (!j?.published) return null;
+    return {
+      hit: {
+        kind: "case",
+        id: j.slug,
+        title: text(j.title || j.case_no || j.citation, j.title_tr),
+        label: { en: j.citation, bn: latinDigits(j.citation) },
+        context: courtLabel(j.court),
+        snippet: { en: clip(j.excerpt ?? "", 240), bn: clip(j.excerpt ?? "", 240) },
+        href: `/bd/cases/${j.slug}`,
+      },
+      ref: { kind: "case", slug: j.slug },
+    };
+  }
+  const { data: law } = await db.from("laws").select("slug,title,title_bn,unit,published").eq("slug", ctx.slug).maybeSingle();
+  if (!law?.published) return null;
+  const first = ctx.n
+    ? await db.from("law_sections").select("n,title,title_tr").eq("law_slug", law.slug).eq("n", ctx.n).maybeSingle()
+    : await db.from("law_sections").select("n,title,title_tr").eq("law_slug", law.slug).order("sort_order").limit(1).maybeSingle();
+  const s = first.data;
+  if (!s) return null;
+  const unit = law.unit === "articles" ? "articles" : "sections";
+  return {
+    hit: {
+      kind: "law",
+      id: `${law.slug}-s-${s.n}`,
+      title: text(s.title, s.title_tr),
+      label: sectionLabel(s.n, unit),
+      context: text(law.title, law.title_bn),
+      snippet: { en: s.title, bn: s.title_tr ?? s.title },
+      href: `/bd/laws/${law.slug}/section-${s.n}`,
+    },
+    ref: { kind: "section", lawSlug: law.slug, n: s.n },
+  };
+}
+
+/** Puts the pinned source first (dropping its repeat), keeping the lists' sizes. */
+export function withPinned(r: Retrieved, pinned: { hit: SourceHit; ref: SourceRef } | null): Retrieved {
+  if (!pinned) return r;
+  const lawCount = r.answer.laws.length;
+  const laws = r.answer.laws.map((hit, i) => ({ hit, ref: r.refs[i]! })).filter((x) => x.hit.id !== pinned.hit.id);
+  const cases = r.answer.cases.map((hit, i) => ({ hit, ref: r.refs[lawCount + i]! })).filter((x) => x.hit.id !== pinned.hit.id);
+  if (pinned.hit.kind === "law") laws.unshift(pinned);
+  else cases.unshift(pinned);
+  const l = laws.slice(0, 5);
+  const c = cases.slice(0, 4);
+  return { answer: { ...r.answer, laws: l.map((x) => x.hit), cases: c.map((x) => x.hit) }, refs: [...l.map((x) => x.ref), ...c.map((x) => x.ref)] };
+}

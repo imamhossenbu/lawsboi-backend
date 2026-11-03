@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aiConfigured, AiError, generate, generateJson, type AiUsage } from "../../lib/ai/gemini.js";
+import { aiConfigured, AiError, generate, generateJson, type AiPart, type AiUsage } from "../../lib/ai/gemini.js";
 import { tracked, type Caller } from "../../lib/ai/usage.js";
 import { db } from "../../lib/supabase.js";
 import { latinDigits, type Text } from "../catalogue/shared.js";
@@ -124,6 +124,21 @@ export async function retrieveForFollowUp(question: string, previous: string, sc
   }
 }
 
+/** Adds what an image's own search terms find, taking turns with the question's sources (image first). */
+export async function withImageTerms(found: Retrieved, terms: string | undefined, scope: Scope): Promise<Retrieved> {
+  if (!terms) return found;
+  try {
+    const seen = await retrieve(terms, scope, { anyWords: true });
+    if (hitCount(seen) === 0) return found;
+    const [s, f] = [split(seen), split(found)];
+    const laws = interleave(s.laws, f.laws, 5);
+    const cases = interleave(s.cases, f.cases, 3);
+    return { answer: { ...found.answer, laws: laws.hits, cases: cases.hits }, refs: [...laws.refs, ...cases.refs] };
+  } catch {
+    return found;
+  }
+}
+
 export interface Grounding {
   hit: SourceHit;
   text: string;
@@ -208,7 +223,12 @@ export async function groundingOf(retrieved: Retrieved): Promise<Grounding[]> {
 const citationOf = (hit: SourceHit, index: number): Citation => ({ index, kind: hit.kind, id: hit.id, title: hit.title, label: hit.label, href: hit.href });
 
 /** The written answer for a question and its sources. Never throws: a failure comes back as text: null + reason. */
-export async function writeAnswer(question: string, siteLang: Lang, retrieved: Retrieved, options: { short?: boolean; caller: Caller; earlier?: Turn[] }): Promise<Written> {
+export async function writeAnswer(
+  question: string,
+  siteLang: Lang,
+  retrieved: Retrieved,
+  options: { short?: boolean; caller: Caller; earlier?: Turn[]; images?: AiPart[]; pinned?: string },
+): Promise<Written> {
   const lang = languageOf(question, siteLang);
   const sources = await groundingOf(retrieved).catch(() => [] as Grounding[]);
   if (!sources.length) return { text: null, citations: [], lang, model: null, reason: "no_sources" };
@@ -218,7 +238,9 @@ export async function writeAnswer(question: string, siteLang: Lang, retrieved: R
       generate({
         purpose: options.short ? "assistant.preview" : "assistant.answer",
         system: systemInstruction(lang, !!options.short),
-        input: buildPrompt(question, sources, options.earlier),
+        input: options.images?.length
+          ? [{ type: "text", text: `${buildPrompt(question, sources, options.earlier)}\n\n${IMAGE_NOTE}${pinnedNote(options.pinned)}` }, ...options.images]
+          : `${buildPrompt(question, sources, options.earlier)}${pinnedNote(options.pinned)}`,
         // Thinking tokens count against the cap, so it is set well above the answer's own length
         maxOutputTokens: options.short ? 2_000 : 6_000,
         thinking: options.short ? "minimal" : "low",
@@ -230,6 +252,37 @@ export async function writeAnswer(question: string, siteLang: Lang, retrieved: R
     return { text, citations, lang, model: out.model, usage: out.usage };
   } catch (err) {
     return { text: null, citations: [], lang, model: null, reason: err instanceof AiError ? err.code : "unavailable" };
+  }
+}
+
+const IMAGE_NOTE =
+  "The reader attached the image(s) below (a document, notice, photo or screenshot). Read them and use what they show to understand the question; you may describe or quote them, but every statement about the law must still cite the numbered sources.";
+const pinnedNote = (pinned?: string) => (pinned ? `\n\nThe reader asked this while reading source [1] (${pinned}); answer with that source in mind first.` : "");
+
+const imageReadSchema = z.object({ gist: z.string().max(1500), terms: z.string().max(300) });
+
+/** What the reader's images show, in a few lines, and English search terms for the legal points they raise, so the
+ * search can find the provisions an image is about even when the question is only "what does this mean?". */
+export async function readImages(images: AiPart[], question: string, caller: Caller) {
+  if (!aiConfigured() || !images.length) return null;
+  try {
+    const out = await tracked("assistant.image", caller, () =>
+      generateJson(
+        {
+          purpose: "assistant.image",
+          system:
+            "The reader of a Bangladeshi law library attached image(s) to a question. Return `gist`: two to five plain sentences on what the image shows and any legal points it raises (quote key lines, names of acts, section numbers). Return `terms`: 4 to 12 English full-text search words for those legal points (no numbers).",
+          input: [{ type: "text", text: `Question: ${question}` }, ...images],
+          maxOutputTokens: 2_000,
+          thinking: "minimal",
+          budgetMs: 20_000,
+        },
+        imageReadSchema,
+      ),
+    );
+    return { gist: out.value.gist, terms: out.value.terms.replace(/[\d০-৯]+/g, " ").replace(/\s+/g, " ").trim() };
+  } catch {
+    return null;
   }
 }
 

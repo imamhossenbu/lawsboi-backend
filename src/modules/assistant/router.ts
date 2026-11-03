@@ -6,8 +6,8 @@ import { parsed, validate } from "../../middleware/validate.js";
 import { notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { fetchAll } from "../catalogue/shared.js";
-import { retrieveForAnswer, retrieveForFollowUp, withWriting, writeAnswer, type Turn } from "./answer.js";
-import { assertAllowance, usage } from "./service.js";
+import { readImages, withImageTerms, retrieveForAnswer, retrieveForFollowUp, withWriting, writeAnswer, type Turn } from "./answer.js";
+import { assertAllowance, pinnedSource, usage, withPinned, type AskContext } from "./service.js";
 
 // Readers: ask the assistant (counted against the plan's monthly allowance), see the month's usage and their history.
 // Visitors get a few rate-limited, unlogged previews from the landing page, with a short answer.
@@ -22,7 +22,26 @@ const askSchema = z.object({
   lang: z.enum(["en", "bn"]).default("en"),
   // A follow-up in an existing chat; without it the question starts a new one
   conversationId: z.uuid().optional(),
+  // The law, section or judgment the reader asked from ("Ask AI" on its page): it leads the sources
+  context: z
+    .discriminatedUnion("kind", [
+      z.object({ kind: z.literal("law"), slug: z.string().regex(/^[a-z0-9-]{1,120}$/), n: z.string().regex(/^[0-9]+[a-z]?(?:-\d+)?$/i).optional() }),
+      z.object({ kind: z.literal("case"), slug: z.string().regex(/^[a-z0-9-]{1,120}$/) }),
+    ])
+    .optional(),
+  // Photos or screenshots the reader attached (signed-in readers): base64 JPEG/PNG/WebP, made small by the site
+  images: z
+    .array(z.object({ mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]), data: z.string().max(1_400_000).regex(/^[A-Za-z0-9+/=]+$/) }))
+    .max(3)
+    .optional(),
 });
+
+/** The page asked from, as a pinned source and the line the model is told about it. */
+async function pinnedFor(context: AskContext | undefined) {
+  if (!context) return null;
+  const p = await pinnedSource(context).catch(() => null);
+  return p && { ...p, note: `${p.hit.label.en}, ${p.hit.context.en}` };
+}
 
 const EARLIER_TURNS = 3;
 
@@ -30,8 +49,9 @@ const previews = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeader
 
 assistantRouter.post("/preview", previews, validate("body", askSchema), async (req, res) => {
   const b = req.body as z.infer<typeof askSchema>;
-  const found = await retrieveForAnswer(b.question, b.scope, b.lang, {});
-  const written = await writeAnswer(b.question, b.lang, found, { short: true, caller: {} });
+  const pinned = await pinnedFor(b.context);
+  const found = withPinned(await retrieveForAnswer(b.question, b.scope, b.lang, {}), pinned);
+  const written = await writeAnswer(b.question, b.lang, found, { short: true, caller: {}, ...(pinned && { pinned: pinned.note }) });
   res.json({ answer: withWriting(found.answer, written) });
 });
 
@@ -57,10 +77,13 @@ assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (
   assertAllowance(before);
   // A follow-up ("and in a dwelling house?") is searched in the light of the chat's previous question
   const last = earlier.at(-1);
-  const found = last
-    ? await retrieveForFollowUp(b.question, last.question, b.scope, b.lang, { userId: me.id })
-    : await retrieveForAnswer(b.question, b.scope, b.lang, { userId: me.id });
-  const written = await writeAnswer(b.question, b.lang, found, { caller: { userId: me.id }, earlier });
+  const caller = { userId: me.id };
+  const images = (b.images ?? []).map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType }));
+  // An image's legal points join the question's words in the search
+  const [pinned, seen] = await Promise.all([pinnedFor(b.context), readImages(images, b.question, caller)]);
+  const asked = last ? await retrieveForFollowUp(b.question, last.question, b.scope, b.lang, caller) : await retrieveForAnswer(b.question, b.scope, b.lang, caller);
+  const found = withPinned(await withImageTerms(asked, seen?.terms, b.scope), pinned);
+  const written = await writeAnswer(b.question, b.lang, found, { caller, earlier, ...(images.length && { images }), ...(pinned && { pinned: pinned.note }) });
   const result = withWriting(found.answer, written);
   const row = unwrap(
     await db
@@ -71,12 +94,28 @@ assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (
         question: b.question,
         lang: written.lang,
         scope: b.scope,
-        answer: { laws: result.laws, cases: result.cases, text: result.text, citations: result.citations, model: result.model, reason: result.reason ?? null } as never,
+        answer: {
+          laws: result.laws,
+          cases: result.cases,
+          text: result.text,
+          citations: result.citations,
+          model: result.model,
+          reason: result.reason ?? null,
+          // The images themselves aren't kept: the chat shows how many there were and what they showed
+          ...(images.length && { attachments: { images: images.length, gist: seen?.gist ?? null } }),
+          ...(b.context && { context: b.context }),
+        } as never,
       })
       .select("id,created_at,conversation_id")
       .single(),
   );
-  res.status(201).json({ id: row.id, conversationId: row.conversation_id, at: row.created_at, answer: result, usage: { ...before, used: before.used + 1 } });
+  res.status(201).json({
+    id: row.id,
+    conversationId: row.conversation_id,
+    at: row.created_at,
+    answer: { ...result, ...(images.length && { attachments: { images: images.length, gist: seen?.gist ?? null } }) },
+    usage: { ...before, used: before.used + 1 },
+  });
 });
 
 assistantRouter.get("/usage", requireReader, async (req, res) => {

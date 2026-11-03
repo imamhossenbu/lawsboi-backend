@@ -47,3 +47,16 @@ unlimited).
 | `GET /limits` | | `{ limits }` |
 | `PUT /limits` | `{ free, researcher, professional }` (numbers or null) | `{ limits }` + audit `assistant.limits` |
 | `POST /questions/:id/flag` | `{ flagged }` | `{ question }` + audit `assistant.flag` / `assistant.unflag` |
+
+## Asking about a page, and images
+
+`POST /assistant/ask` and `/assistant/preview` take an optional `context`: `{ kind: "law", slug, n? }` or
+`{ kind: "case", slug }` — the page the reader pressed "Ask AI" on. That provision (a law without `n` stands for its
+first section) or judgment becomes source [1] and the model is told the reader is reading it (`pinnedSource`,
+`withPinned` in `service.ts`).
+
+`/assistant/ask` (readers only) also takes `images`: up to 3 `{ mimeType: image/jpeg|png|webp, data: base64 }`, each
+under ~1 MB (the reader site shrinks them to 1600px JPEG; this route alone accepts a 5 MB body). The model first reads
+them (`readImages`: a short gist and English search terms); what those terms find takes turns with the question's own
+sources, and the images go to the model with the sources when it writes. Images aren't stored: the logged answer keeps
+`attachments: { images, gist }`.
