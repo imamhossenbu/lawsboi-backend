@@ -22,10 +22,15 @@ export function normalizeMobile(input: string) {
 }
 
 const text = z.object({ en: z.string().trim().max(300), bn: z.string().trim().max(300) });
+const socialUrl = z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(300)]).default("");
 const contactSchema = z.object({
   email: z.email(),
   phone: z.string().trim().max(30),
   whatsapp: z.string().trim().max(30),
+  // The reader site's social buttons (footer, home hero, contact page); an empty one is left out there
+  facebook: socialUrl,
+  linkedin: socialUrl,
+  youtube: socialUrl,
   replyTime: text,
   hours: text,
   office: text,
