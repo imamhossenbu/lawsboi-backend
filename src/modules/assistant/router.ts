@@ -6,7 +6,7 @@ import { parsed, validate } from "../../middleware/validate.js";
 import { notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { fetchAll } from "../catalogue/shared.js";
-import { readImages, withImageTerms, retrieveForAnswer, retrieveForFollowUp, withWriting, writeAnswer, type Turn } from "./answer.js";
+import { emptyRetrieved, isAboutLawsboi, isSmallTalk, readImages, withImageTerms, retrieveForAnswer, retrieveForFollowUp, withWriting, writeAnswer, type Turn } from "./answer.js";
 import { assertAllowance, pinnedSource, usage, withPinned, type AskContext } from "./service.js";
 
 // Readers: ask the assistant (counted against the plan's monthly allowance), see the month's usage and their history.
@@ -50,7 +50,8 @@ const previews = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeader
 assistantRouter.post("/preview", previews, validate("body", askSchema), async (req, res) => {
   const b = req.body as z.infer<typeof askSchema>;
   const pinned = await pinnedFor(b.context);
-  const found = withPinned(await retrieveForAnswer(b.question, b.scope, b.lang, {}), pinned);
+  // "hi", "thanks": a friendly line, no search
+  const found = isSmallTalk(b.question) || isAboutLawsboi(b.question) ? emptyRetrieved(b.question, b.scope) : withPinned(await retrieveForAnswer(b.question, b.scope, b.lang, {}), pinned);
   const written = await writeAnswer(b.question, b.lang, found, { short: true, caller: {}, ...(pinned && { pinned: pinned.note }) });
   res.json({ answer: withWriting(found.answer, written) });
 });
@@ -81,8 +82,14 @@ assistantRouter.post("/ask", requireReader, validate("body", askSchema), async (
   const images = (b.images ?? []).map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mimeType }));
   // An image's legal points join the question's words in the search
   const [pinned, seen] = await Promise.all([pinnedFor(b.context), readImages(images, b.question, caller)]);
-  const asked = last ? await retrieveForFollowUp(b.question, last.question, b.scope, b.lang, caller) : await retrieveForAnswer(b.question, b.scope, b.lang, caller);
-  const found = withPinned(await withImageTerms(asked, seen?.terms, b.scope), pinned);
+  // "hi", "thanks" (with no image): a friendly line, no search
+  const chatty = (isSmallTalk(b.question) || isAboutLawsboi(b.question)) && !images.length;
+  const asked = chatty
+    ? emptyRetrieved(b.question, b.scope)
+    : last
+      ? await retrieveForFollowUp(b.question, last.question, b.scope, b.lang, caller)
+      : await retrieveForAnswer(b.question, b.scope, b.lang, caller);
+  const found = chatty ? asked : withPinned(await withImageTerms(asked, seen?.terms, b.scope), pinned);
   const written = await writeAnswer(b.question, b.lang, found, { caller, earlier, ...(images.length && { images }), ...(pinned && { pinned: pinned.note }) });
   const result = withWriting(found.answer, written);
   const row = unwrap(

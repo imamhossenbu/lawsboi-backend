@@ -145,18 +145,99 @@ export interface Grounding {
 }
 
 export function systemInstruction(lang: Lang, short: boolean) {
-  const language = lang === "bn" ? "Bangla (Bengali script), in a clear formal register" : "English";
+  const language = lang === "bn" ? "Bangla (Bengali script), in a clear, natural register" : "English";
   return [
-    "You are Lawsboi's legal research assistant for the laws and court judgments of Bangladesh.",
-    "Answer the reader's question using ONLY the numbered sources you are given. Do not use outside knowledge, and never invent sections, cases, dates or penalties.",
-    "Cite the source behind every statement with its number in square brackets using Latin digits, like [1] or [2][3], right after the statement.",
-    "If the sources don't answer the question, or only answer part of it, say so plainly and say what they do cover.",
+    "You are Lawsboi's assistant for the laws and court judgments of Bangladesh. Talk like a helpful, friendly expert, not a form.",
+    "Read what the reader actually asked and answer that. Fit the length to the question: a simple or narrow question gets a short, direct answer (one to three sentences); only go into detail when the question needs it.",
+    "For anything about the law, use ONLY the numbered sources you are given. Do not use outside knowledge for legal rules, and never invent sections, cases, dates or penalties.",
+    "Cite the source behind every legal statement with its number in square brackets using Latin digits, like [1] or [2][3], right after the statement.",
+    "If the sources don't answer the question, or only part of it, say so in a sentence and say what they do cover. If the message isn't really a legal question, reply naturally and briefly without forcing the sources in.",
     `Write in ${language}. Keep section numbers, case citations and the names of acts as they appear in the sources.`,
     short
       ? "Keep it to two or three sentences."
-      : "Use two to five short paragraphs; a short list with lines starting \"- \" is fine for steps or elements. No headings, no bold, no markdown tables.",
-    "End with one short sentence noting this is legal information, not legal advice, and a lawyer should be consulted on a real matter.",
+      : "Use short paragraphs; a short list with lines starting \"- \" is fine for steps or elements. No headings, no bold, no markdown tables.",
+    "Only when the reader seems to face a real legal matter, add one short line that this is legal information, not legal advice. Don't add it to simple or general questions.",
   ].join("\n");
+}
+
+/* ------------------------------------------------------------- small talk */
+
+// Greetings, thanks and questions about the assistant itself need a friendly line, not a search of the statute book
+const SMALL_TALK =
+  /^(?:hi+|hey+|hello+|hola|yo|salam|salaam|assalamu?\s*alaikum|as-?salamu?\s*alaikum|good\s*(?:morning|afternoon|evening|night)|thanks?(?:\s*you)?|thank\s*you(?:\s*so\s*much)?|thx|ty|ok(?:ay)?|cool|nice|great|bye|goodbye|see\s*you|how\s*are\s*you|who\s*are\s*you|what\s*(?:can|do)\s*you\s*do|what\s*is\s*your\s*name|হাই|হ্যালো|হেলো|সালাম|আসসালামু\s*আলাইকুম|আস্সালামু\s*আলাইকুম|ধন্যবাদ|শুভ\s*(?:সকাল|সন্ধ্যা|রাত্রি)|কেমন\s*আছ(?:েন|ো)?|তুমি\s*কে|আপনি\s*কে|বিদায়|ঠিক\s*আছে|আচ্ছা)$/i;
+
+/** A message that is only a greeting, thanks or a question about the assistant ("hi", "thanks!", "কেমন আছেন?"). */
+export function isSmallTalk(question: string) {
+  const bare = question
+    .trim()
+    .toLowerCase()
+    .replace(/[!?.,।🙂😊👋🙏\s]+$/u, "")
+    .replace(/^[!?.,\s]+/, "");
+  return bare.length > 0 && bare.length <= 40 && SMALL_TALK.test(bare);
+}
+
+// Questions about Lawsboi itself (its plans, prices, paying): answered from the plans, not the statute book
+const ABOUT_LAWSBOI =
+  /\b(?:price|prices|pricing|plan|plans|subscription|subscribe|premium|cost|costs|fee|fees|pay|payment|bkash|nagad|researcher\s+plan|professional\s+plan|free\s+plan|upgrade|refund)\b|দাম|মূল্য|প্ল্যান|সাবস্ক্রিপশন|খরচ|ফি\b|পেমেন্ট|বিকাশ|নগদ|আপগ্রেড|রিসার্চার|প্রফেশনাল/i;
+const LAW_WORDS = /\b(?:section|act|ordinance|order|rule|article|court|judgment|case|law|penal|crpc|cpc|bail|suit|evidence)\b|ধারা|আইন|আদেশ|বিধি|অনুচ্ছেদ|আদালত|রায়|মামলা|জামিন/i;
+
+/** A question about Lawsboi's plans or prices rather than the law ("What plans does Lawsboi offer?"). A question
+ * that also names the law ("court fees under the Court-fees Act") stays a legal one. */
+export function isAboutLawsboi(question: string) {
+  return ABOUT_LAWSBOI.test(question) && (!LAW_WORDS.test(question) || /lawsboi|plan|প্ল্যান/i.test(question));
+}
+
+/** The plans as the model is told them: name, price per month and year, and what each includes. */
+async function plansNote(lang: Lang) {
+  const { listPlans } = await import("../billing/service.js");
+  const plans = await listPlans(true).catch(() => []);
+  return plans
+    .map((p) => {
+      const name = p.name[lang] || p.name.en;
+      const price = p.price.monthly ? `৳${p.price.monthly} a month${p.price.yearly ? `, or ৳${p.price.yearly} a year` : ""}` : "free";
+      return `- ${name}: ${price}. Includes: ${p.features.map((f) => f[lang] || f.en).join("; ")}.`;
+    })
+    .join("\n");
+}
+
+/** What retrieval would answer when nothing is searched (small talk). */
+export const emptyRetrieved = (question: string, scope: Scope): Retrieved => ({ answer: { query: question, scope, laws: [], cases: [] }, refs: [] });
+
+const chatInstruction = (lang: Lang) =>
+  [
+    "You are Lawsboi's friendly assistant. Lawsboi is a research site for the laws, sections and Supreme Court judgments of Bangladesh.",
+    "The reader sent a short message rather than a legal question (a greeting, thanks, or asking who you are). Reply naturally and warmly in one or two short sentences, the way a person would, and if it fits, offer to help with a question about Bangladesh law.",
+    "If they asked a legal question that you have no sources for, say you couldn't find the matching provision on Lawsboi and suggest naming the Act or section; don't state any legal rule yourself.",
+    `Write in ${lang === "bn" ? "Bangla (Bengali script)" : "English"}. No citations, no disclaimers, no lists.`,
+  ].join("\n");
+
+/** A short, natural reply with no sources: small talk, a question about Lawsboi's plans, or a question the catalogue
+ * had nothing for. */
+async function chatReply(question: string, lang: Lang, caller: Caller, earlier: Turn[] = []): Promise<Written> {
+  const plans = isAboutLawsboi(question) ? await plansNote(lang) : "";
+  const canned =
+    lang === "bn"
+      ? "হ্যালো! আমি Lawsboi-এর সহকারী। বাংলাদেশের কোনো আইন, ধারা বা রায় নিয়ে প্রশ্ন থাকলে জিজ্ঞাসা করুন।"
+      : "Hi! I'm Lawsboi's assistant. Ask me anything about the laws, sections or court judgments of Bangladesh.";
+  if (!aiConfigured()) return { text: canned, citations: [], lang, model: null };
+  try {
+    const chat = earlier.length ? `Earlier in this conversation:\n${earlier.map((t) => `Q: ${t.question}\nA: ${(t.answer ?? "").slice(0, 600)}`).join("\n\n")}\n\n` : "";
+    const out = await tracked("assistant.chat", caller, () =>
+      generate({
+        purpose: "assistant.chat",
+        system: plans
+          ? `${chatInstruction(lang)}\nThe reader is asking about Lawsboi's plans. Answer from these plans only (prices in Bangladeshi taka), briefly and plainly; mention the pricing page for details. Don't mention how many AI questions a plan allows.\nPlans:\n${plans}`
+          : chatInstruction(lang),
+        input: `${chat}Message: ${question}`,
+        maxOutputTokens: 800,
+        thinking: "minimal",
+        budgetMs: 15_000,
+      }),
+    );
+    return { text: out.text.trim() || canned, citations: [], lang, model: out.model, usage: out.usage };
+  } catch {
+    return { text: canned, citations: [], lang, model: null };
+  }
 }
 
 /** An earlier question in the same chat and what was answered, so a follow-up can lean on it. */
@@ -188,8 +269,15 @@ export function citedIndexes(text: string, count: number) {
   return seen;
 }
 
-/** Markers written with Bangla digits become Latin, so the reader site can link every [n] the same way. */
-export const normaliseMarkers = (text: string) => text.replace(/\[([০-৯]{1,2})\]/g, (_, d: string) => `[${latinDigits(d)}]`);
+/** Markers become plain [n] with Latin digits, so the reader site can link every one the same way: Bangla digits,
+ * and lists like [1, 3] or [১, ৩], are written as [1][3]. */
+export const normaliseMarkers = (text: string) =>
+  text.replace(/\[((?:[0-9০-৯]{1,2})(?:\s*[,،]\s*[0-9০-৯]{1,2})+|[০-৯]{1,2})\]/g, (_, list: string) =>
+    list
+      .split(/\s*[,،]\s*/)
+      .map((d) => `[${latinDigits(d)}]`)
+      .join(""),
+  );
 
 const blocksText = (body: unknown) => (Array.isArray(body) ? (body as { mark?: string; text?: string }[]).map((b) => [b.mark, b.text].filter(Boolean).join(" ")).join("\n") : "");
 
@@ -230,8 +318,10 @@ export async function writeAnswer(
   options: { short?: boolean; caller: Caller; earlier?: Turn[]; images?: AiPart[]; pinned?: string },
 ): Promise<Written> {
   const lang = languageOf(question, siteLang);
+  // Small talk, or nothing in the catalogue for it: a short natural reply instead of an empty answer
+  if (!retrieved.refs.length) return chatReply(question, lang, options.caller, options.earlier);
   const sources = await groundingOf(retrieved).catch(() => [] as Grounding[]);
-  if (!sources.length) return { text: null, citations: [], lang, model: null, reason: "no_sources" };
+  if (!sources.length) return chatReply(question, lang, options.caller, options.earlier);
   if (!aiConfigured()) return { text: null, citations: [], lang, model: null, reason: "not_configured" };
   try {
     const out = await tracked(options.short ? "assistant.preview" : "assistant.answer", options.caller, () =>

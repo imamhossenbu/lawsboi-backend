@@ -5,7 +5,7 @@ process.env.JWT_SECRET ??= "test-jwt-secret-that-is-long-enough-1234567890";
 process.env.SUPABASE_SECRET_KEY ??= "sb_secret_test";
 process.env.NODE_ENV = "test";
 
-const { buildPrompt, citedIndexes, languageOf, normaliseMarkers, systemInstruction } = await import("../src/modules/assistant/answer.js");
+const { buildPrompt, citedIndexes, isAboutLawsboi, isSmallTalk, languageOf, normaliseMarkers, systemInstruction } = await import("../src/modules/assistant/answer.js");
 const { anyWordsQuery } = await import("../src/modules/assistant/service.js");
 
 const hit = (kind: "law" | "case", label: string) => ({
@@ -50,5 +50,22 @@ describe("assistant answers", () => {
 
   it("joins model search terms with OR", () => {
     expect(anyWordsQuery(["dower", "divorce", "wife"])).toBe("dower:* | divorce:* | wife:*");
+  });
+
+  it("writes listed and Bangla markers as separate Latin ones", () => {
+    expect(normaliseMarkers("দেখুন [১, ৩]")).toBe("দেখুন [1][3]");
+    expect(normaliseMarkers("see [2, 4] and [Act]")).toBe("see [2][4] and [Act]");
+  });
+
+  it("tells small talk from a question", () => {
+    for (const q of ["hi", "Hello!", "thanks", "ধন্যবাদ", "কেমন আছেন?", "who are you?"]) expect(isSmallTalk(q)).toBe(true);
+    for (const q of ["hi, what is section 9 of the CPC?", "bail for theft", "চুরির শাস্তি কী?"]) expect(isSmallTalk(q)).toBe(false);
+  });
+
+  it("tells questions about Lawsboi's plans from legal ones", () => {
+    expect(isAboutLawsboi("What plans does Lawsboi offer?")).toBe(true);
+    expect(isAboutLawsboi("রিসার্চার প্ল্যানে কী কী পাওয়া যায়?")).toBe(true);
+    expect(isAboutLawsboi("What is the court fee for a suit under the Court-fees Act?")).toBe(false);
+    expect(isAboutLawsboi("What is the punishment for theft?")).toBe(false);
   });
 });
