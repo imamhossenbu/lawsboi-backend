@@ -1,6 +1,6 @@
 import { verifyAccessToken } from "../../lib/accounts.js";
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { z } from "zod";
 import { db } from "../../lib/supabase.js";
 import { parsed, validate } from "../../middleware/validate.js";
@@ -10,6 +10,9 @@ import { casesQuery, latestQuery, lawsQuery, provisionParam, readSchema, searchQ
 import { searchLaws } from "./search.service.js";
 import { sitemapIndex, sitemapSections } from "./sitemap.service.js";
 import { sectionLabel, text } from "./shared.js";
+import { siteOnly, fromSite } from "../../middleware/site-only.js";
+import { checkAccess } from "./access.service.js";
+import { accessSchema } from "./schemas.js";
 import { sendPdf } from "../../lib/pdf/document.js";
 import { judgmentPdf } from "../../lib/pdf/judgment.js";
 import { lawPdf } from "../../lib/pdf/law.js";
@@ -66,7 +69,7 @@ catalogueRouter.get("/laws", validate("query", lawsQuery), async (req, res) => {
   res.json(result);
 });
 
-catalogueRouter.get("/laws/search", validate("query", searchQuery), async (req, res) => {
+catalogueRouter.get("/laws/search", siteOnly, validate("query", searchQuery), async (req, res) => {
   const { q, limit } = parsed<z.infer<typeof searchQuery>>(req, "query");
   res.json({ hits: await searchLaws(q, limit) });
 });
@@ -75,7 +78,7 @@ catalogueRouter.get("/laws/:slug", validate("params", slugParam), async (req, re
   res.json(await getLaw(parsed<{ slug: string }>(req, "params").slug));
 });
 
-catalogueRouter.get("/laws/:slug/text", validate("params", slugParam), async (req, res) => {
+catalogueRouter.get("/laws/:slug/text", siteOnly, validate("params", slugParam), async (req, res) => {
   res.json({ text: await getActText(parsed<{ slug: string }>(req, "params").slug) });
 });
 
@@ -85,12 +88,12 @@ catalogueRouter.get("/laws/:slug/cases", validate("params", slugParam), async (r
   res.json({ cases: await casesCitingLaw(slug) });
 });
 
-catalogueRouter.get("/laws/:slug/sections/:n", validate("params", provisionParam), async (req, res) => {
+catalogueRouter.get("/laws/:slug/sections/:n", siteOnly, validate("params", provisionParam), async (req, res) => {
   const { slug, n } = parsed<{ slug: string; n: string }>(req, "params");
   res.json({ section: await getSection(slug, n) });
 });
 
-catalogueRouter.get("/laws/:slug/orders/:n", validate("params", provisionParam), async (req, res) => {
+catalogueRouter.get("/laws/:slug/orders/:n", siteOnly, validate("params", provisionParam), async (req, res) => {
   const { slug, n } = parsed<{ slug: string; n: string }>(req, "params");
   res.json({ order: await getOrder(slug, n) });
 });
@@ -106,7 +109,7 @@ catalogueRouter.get("/cases/latest", validate("query", latestQuery), async (req,
   res.json({ cases: await latestCases(parsed<{ limit: number }>(req, "query").limit) });
 });
 
-catalogueRouter.get("/cases/:slug", validate("params", slugParam), async (req, res) => {
+catalogueRouter.get("/cases/:slug", siteOnly, validate("params", slugParam), async (req, res) => {
   res.json({ case: await getCase(parsed<{ slug: string }>(req, "params").slug) });
 });
 
@@ -124,7 +127,7 @@ const pdfQuery = z.object({
 const pdfLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
 
 /** The law as a PDF, whole or a few sections, in the reader's language. */
-catalogueRouter.get("/laws/:slug/pdf", pdfLimiter, validate("params", slugParam), validate("query", pdfQuery), async (req, res) => {
+catalogueRouter.get("/laws/:slug/pdf", siteOnly, pdfLimiter, validate("params", slugParam), validate("query", pdfQuery), async (req, res) => {
   const { slug } = parsed<{ slug: string }>(req, "params");
   const q = parsed<z.infer<typeof pdfQuery>>(req, "query");
   const [detail, body] = await Promise.all([getLaw(slug), getActText(slug)]);
@@ -133,7 +136,7 @@ catalogueRouter.get("/laws/:slug/pdf", pdfLimiter, validate("params", slugParam)
 });
 
 /** A judgment as a PDF. */
-catalogueRouter.get("/cases/:slug/pdf", pdfLimiter, validate("params", slugParam), validate("query", pdfQuery.pick({ lang: true })), async (req, res) => {
+catalogueRouter.get("/cases/:slug/pdf", siteOnly, pdfLimiter, validate("params", slugParam), validate("query", pdfQuery.pick({ lang: true })), async (req, res) => {
   const { slug } = parsed<{ slug: string }>(req, "params");
   const { lang } = parsed<{ lang: "en" | "bn" }>(req, "query");
   const { bytes, name } = await judgmentPdf(await getCase(slug), lang);
@@ -239,4 +242,29 @@ catalogueRouter.post("/reads", reads, validate("body", readSchema), async (req, 
   }
   await db.from("catalogue_reads").insert({ kind: b.kind, slug: b.slug, n: b.n ?? null, user_id: user });
   res.status(202).json({ ok: true, counted: true });
+});
+
+/* ----------------------------------------------------------------- access */
+
+// Reading checks come from the site's server, a few per page view; this stops one address hammering it
+const accessLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  // The site's server calls for every visitor, so count the visitor's address it passes on
+  keyGenerator: (req) => ipKeyGenerator(fromSite(req) && typeof req.headers["x-viewer-ip"] === "string" ? req.headers["x-viewer-ip"] : (req.ip ?? "0.0.0.0")),
+  message: { error: { code: "too_many_requests", message: "Too many pages too quickly. Slow down a little." } },
+});
+
+/** May this viewer read this section, Order, judgment or whole act? Counts it towards their allowance when so. The
+ * site's server asks before it sends the text, with the viewer's device id and address. */
+catalogueRouter.post("/access", siteOnly, accessLimiter, validate("body", accessSchema), async (req, res) => {
+  const b = req.body as z.infer<typeof accessSchema>;
+  const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : null;
+  const user = token ? ((await verifyAccessToken(token).catch(() => null))?.id ?? null) : null;
+  const device = typeof req.headers["x-viewer-device"] === "string" && /^[a-z0-9-]{16,64}$/i.test(req.headers["x-viewer-device"]) ? req.headers["x-viewer-device"] : null;
+  const sentIp = typeof req.headers["x-viewer-ip"] === "string" && /^[0-9a-f:.]{3,45}$/i.test(req.headers["x-viewer-ip"]) ? req.headers["x-viewer-ip"] : null;
+  const ip = fromSite(req) && sentIp ? sentIp : (req.ip ?? null);
+  res.json(await checkAccess({ ...b, user, device, ip }));
 });

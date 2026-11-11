@@ -495,6 +495,18 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"reading_access": {
+                  Row: {
+                    "at": string,"device": string | null,"id": number,"ip": string | null,"item": string,"kind": string,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"device"?: string | null,"id"?: never,"ip"?: string | null,"item": string,"kind": string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "at"?: string,"device"?: string | null,"id"?: never,"ip"?: string | null,"item"?: string,"kind"?: string,"user_id"?: string | null
+                  }
+                  Relationships: []
                 },"law_section_related_cases": {
                   Row: {
                     "case_slug": string | null,"citation": string,"created_at": string,"id": string,"law_slug": string,"n": string,"sort_order": number,"title": string,"url": string | null

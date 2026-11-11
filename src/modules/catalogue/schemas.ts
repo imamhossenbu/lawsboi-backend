@@ -63,3 +63,9 @@ export const readSchema = z.object({
 });
 
 export const latestQuery = z.object({ limit: z.coerce.number().int().min(1).max(50).default(5) });
+
+export const accessSchema = z.object({
+  kind: z.enum(["section", "order", "judgment", "text"]),
+  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,120}$/i),
+  n: z.string().max(20).optional(),
+});

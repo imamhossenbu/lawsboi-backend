@@ -9,6 +9,22 @@ enacted text stands in for both, as the reader site did. Laws and judgments are 
 
 Blocks are the reader's own: `{ kind: "para" | "clause" | "tail", mark?, text, notes?: number[] }`.
 
+## Site only, and the reading allowance
+
+The full text — `laws/search`, `laws/:slug/text`, `sections/:n`, `orders/:n`, `cases/:slug`, both PDFs and `GET /search`
+— is served only to the reader site's server, which sends `X-Site-Key: <SITE_KEY>` (403 otherwise; off while
+`SITE_KEY` is unset). Browsers never call these, so the text never shows in their network tab.
+
+`POST /catalogue/access` (site only; `{ kind: "section" | "order" | "judgment" | "text", slug, n? }`, the reader's
+bearer token if signed in, `X-Viewer-Device` = the site's device cookie, `X-Viewer-Ip` = the visitor's address) says
+whether the viewer may read it and counts it: `{ allowed, reason?: "signin" | "upgrade" | "paid_only" | "daily",
+viewer: "visitor" | "free" | "paid", used?, limit? }`. Visitors get 10 sections and 2 judgments a month, free readers
+30 and 5 (`ALLOWANCE` in `access.service.ts`), counted per account, per device and (signed out) per address at four
+times the allowance, so switching free accounts or signing out on one device doesn't open more; something already
+read this month opens again without counting. The whole act (`text`) is for paid plans; paid accounts stop at 400
+distinct items a day. Kept in `reading_access`; until that table exists everything stays open. 60 checks a minute per
+visitor address.
+
 ## Public
 
 | Route | Query / body | Returns |

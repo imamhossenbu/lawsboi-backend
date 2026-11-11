@@ -32,6 +32,10 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // The reader site's server sends this in X-Site-Key for the catalogue's full text (sections, judgments, PDFs,
+  // search) and reading checks; set the same value as SITE_KEY on the site. \`openssl rand -base64 32\`
+  SITE_KEY: z.string().min(16).optional(),
+
   // The external scheduler (cron-job.org) calls /cron/tick with this as a Bearer token
   CRON_SECRET: z.string().optional(),
 
