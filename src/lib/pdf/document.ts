@@ -8,6 +8,8 @@ import PDFDocument from "pdfkit";
 export type Lang = "en" | "bn";
 
 const fontFile = (name: string) => readFileSync(new URL(`../../../assets/fonts/${name}.ttf`, import.meta.url));
+/** The site's logo mark (the same image the reader site's header shows), 610 × 782. */
+const logoMark = readFileSync(new URL("../../../assets/logo-mark.png", import.meta.url));
 let fonts: Record<string, Buffer> | null = null;
 const loadFonts = () =>
   (fonts ??= {
@@ -151,12 +153,12 @@ export class Pdf {
     return this;
   }
 
-  /** The Lawsboi mark at the top of the first page: a green square with a gold "b", then the name. */
+  /** The Lawsboi logo at the top of the first page: the site's mark, then the name in green and gold. */
   brand(tagline: string) {
     const doc = this.doc;
-    const y = doc.page.margins.top - 30;
-    doc.roundedRect(this.left, y, 22, 22, 5).fill(colors.primary);
-    doc.font("latinBold").fontSize(14).fillColor(colors.gold).text("b", this.left, y + 2.5, { width: 22, align: "center" });
+    const y = doc.page.margins.top - 32;
+    // 610 × 782: 22 points wide is about 28 tall
+    doc.image(logoMark, this.left, y - 2, { width: 22 });
     doc.font("latinBold").fontSize(15).fillColor(colors.primary).text("laws", this.left + 30, y + 1, { continued: true }).fillColor(colors.gold).text("boi");
     this.write(tagline, { x: this.left + 30, y: y + 19, size: 7, color: colors.subtle });
     doc.y = doc.page.margins.top + 4;

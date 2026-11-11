@@ -1,6 +1,7 @@
 import { notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
 import { fetchAll, normalize, statusOut, stringsOf, text, toTsQuery, type JudgmentDb, type Text } from "./shared.js";
+import { manualListsOf, type ManualLaw } from "./related.service.js";
 
 // Judgments (SCOB), the provisions they cite, and the judgments citing a law, as the reader's case pages show them.
 
@@ -47,6 +48,9 @@ export interface CaseDetail extends CaseSummary {
   advocates: { side: string; names: string }[];
   citationsReferred: string[];
   related: CaseSummary[];
+  /** Related cases and laws the team wrote in by hand (not, or not yet, in the catalogue). */
+  relatedManual: { title: string; citation: string; url: string | null }[];
+  lawsManual: ManualLaw[];
   /** The judgment, one string per paragraph, in the language of the report; and its translation when it exists. */
   text: string[];
   textTr: string[] | null;
@@ -234,6 +238,7 @@ export async function getCase(slug: string, includeDrafts = false): Promise<Case
     advocates: (Array.isArray(j.advocates) ? (j.advocates as CaseDetail["advocates"]) : []),
     citationsReferred: j.citations_referred,
     related,
+    ...manualListsOf(j),
     text: stringsOf(j.paragraphs),
     textTr: j.paragraphs_tr ? stringsOf(j.paragraphs_tr) : null,
     source: (j.source as CaseDetail["source"]) ?? null,

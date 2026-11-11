@@ -417,14 +417,28 @@ isOneToOne: false
                   ]
                 },"judgments": {
                   Row: {
-                    "advocates": NonNullable<Json>,"author": string | null,"case_no": string,"citation": string,"citations_referred": (string)[],"court": string,"created_at": string,"date_known": boolean,"decided_on": string | null,"excerpt": string | null,"hearing": string | null,"judges": (string)[],"keywords": (string)[],"language": Database["public"]['Enums']["lang"],"origin": string | null,"paragraph_count": number,"paragraphs": NonNullable<Json>,"paragraphs_tr": Json | null,"parties": Json | null,"petition": boolean,"published": boolean,"related_slugs": (string)[],"search": unknown,"slug": string,"source": Json | null,"title": string,"title_tr": string | null,"type": string,"updated_at": string
+                    "advocates": NonNullable<Json>,"author": string | null,"case_no": string,"citation": string,"citations_referred": (string)[],"court": string,"created_at": string,"date_known": boolean,"decided_on": string | null,"excerpt": string | null,"hearing": string | null,"judges": (string)[],"keywords": (string)[],"language": Database["public"]['Enums']["lang"],"origin": string | null,"paragraph_count": number,"paragraphs": NonNullable<Json>,"paragraphs_tr": Json | null,"parties": Json | null,"petition": boolean,"published": boolean,"related_manual": Json,"related_slugs": (string)[],"laws_manual": Json,"search": unknown,"slug": string,"source": Json | null,"title": string,"title_tr": string | null,"type": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation": string,"citations_referred"?: (string)[],"court": string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_slugs"?: (string)[],"search"?: never,"slug": string,"source"?: Json | null,"title": string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
+                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation": string,"citations_referred"?: (string)[],"court": string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_manual"?: Json,"related_slugs"?: (string)[],"laws_manual"?: Json,"search"?: never,"slug": string,"source"?: Json | null,"title": string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation"?: string,"citations_referred"?: (string)[],"court"?: string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_slugs"?: (string)[],"search"?: never,"slug"?: string,"source"?: Json | null,"title"?: string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
+                    "advocates"?: NonNullable<Json>,"author"?: string | null,"case_no"?: string,"citation"?: string,"citations_referred"?: (string)[],"court"?: string,"created_at"?: string,"date_known"?: boolean,"decided_on"?: string | null,"excerpt"?: string | null,"hearing"?: string | null,"judges"?: (string)[],"keywords"?: (string)[],"language"?: Database["public"]['Enums']["lang"],"origin"?: string | null,"paragraph_count"?: number,"paragraphs"?: NonNullable<Json>,"paragraphs_tr"?: Json | null,"parties"?: Json | null,"petition"?: boolean,"published"?: boolean,"related_manual"?: Json,"related_slugs"?: (string)[],"laws_manual"?: Json,"search"?: never,"slug"?: string,"source"?: Json | null,"title"?: string,"title_tr"?: string | null,"type"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"law_section_related_cases": {
+                  Row: {
+                    "case_slug": string | null,"citation": string,"created_at": string,"id": string,"law_slug": string,"n": string,"sort_order": number,"title": string,"url": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "case_slug"?: string | null,"citation"?: string,"created_at"?: string,"id"?: string,"law_slug": string,"n": string,"sort_order"?: number,"title": string,"url"?: string | null
+                  }
+                  Update: {
+                    "case_slug"?: string | null,"citation"?: string,"created_at"?: string,"id"?: string,"law_slug"?: string,"n"?: string,"sort_order"?: number,"title"?: string,"url"?: string | null
                   }
                   Relationships: [
                     

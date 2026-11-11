@@ -1,5 +1,6 @@
 import { notFound, unwrap } from "../../lib/errors.js";
 import { db } from "../../lib/supabase.js";
+import { sectionRelatedCases, type RelatedEntry } from "./related.service.js";
 import {
   blocksOf,
   fetchAll,
@@ -186,6 +187,8 @@ export interface SectionView {
   footnotes: { mark: number; text: Text }[];
   amendments: { year: number; text: Text }[];
   related: { n: string; title: Text }[];
+  /** Cases the team wrote in for this section (picked from the catalogue or typed in), in their order. */
+  relatedCases: RelatedEntry[];
   prev?: { n: string; title: Text };
   next?: { n: string; title: Text };
 }
@@ -201,6 +204,7 @@ export async function getSection(slug: string, n: string, includeDrafts = false)
   const byNumber = new Map(heads.map((s) => [s.n, text(s.title, s.title_tr)]));
   const tr = translationOf(row.translation);
   const notes = stringsOf(row.notes);
+  const relatedCases = await sectionRelatedCases(slug, row.n, includeDrafts);
   const amendments = (Array.isArray(row.amendments) ? (row.amendments as { year: number; text: string; text_bn?: string }[]) : []);
   return {
     n: row.n,
@@ -213,6 +217,7 @@ export async function getSection(slug: string, n: string, includeDrafts = false)
     footnotes: notes.map((t, i) => ({ mark: i + 1, text: text(t, tr?.f?.[i]) })),
     amendments: amendments.map((a) => ({ year: a.year, text: text(a.text, a.text_bn) })),
     related: row.related.filter((r) => byNumber.has(r)).map((r) => ({ n: r, title: byNumber.get(r)! })),
+    relatedCases,
     prev: link(index - 1),
     next: link(index + 1),
   };

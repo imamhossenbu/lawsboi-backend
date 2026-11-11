@@ -13,11 +13,31 @@ export const block = z.object({
   notes: z.array(z.number().int().min(1)).optional(),
 });
 
+const link = z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(500)]).nullable().optional();
+
+/** A related case: a judgment picked from the catalogue (`case`), or one written in by name and number, with an
+ * optional link. The title and citation are kept either way. */
+export const relatedCaseInput = z.object({
+  case: slug.nullable().optional(),
+  title: z.string().trim().min(1).max(500),
+  citation: z.string().trim().max(200).default(""),
+  url: link,
+});
+
+/** A law or provision written in on a judgment ("Section 21A, Specific Relief Act, 1877"), with an optional link. */
+export const manualLawInput = z.object({
+  title: z.string().trim().min(1).max(500),
+  url: link,
+});
+
+export const relatedPut = z.object({ cases: z.array(relatedCaseInput).max(100) });
+
 export const sectionInput = z.object({
   n: z.string().trim().min(1).max(20),
   title: z.string().trim().max(500).default(""),
   body: z.array(block).default([]),
   notes: z.array(z.string().max(5000)).default([]),
+  relatedCases: z.array(relatedCaseInput).max(100).optional(),
 });
 
 export const partInput = z.object({
@@ -98,6 +118,9 @@ export const caseInfo = z.object({
   excerpt: z.string().trim().max(5000).default(""),
   citationsReferred: z.array(z.string().trim().max(200)).default([]),
   related: z.array(slug).default([]),
+  /** Related cases and laws written in by hand; left out of a change, they stay as they are. */
+  relatedManual: z.array(relatedCaseInput.omit({ case: true })).max(100).optional(),
+  lawsManual: z.array(manualLawInput).max(100).optional(),
   source: z.object({ volume: z.string().max(40), page: z.number().int(), url: z.string().max(500) }).nullable().optional(),
   language: lang.default("en"),
 });

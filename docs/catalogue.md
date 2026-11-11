@@ -19,12 +19,12 @@ Blocks are the reader's own: `{ kind: "para" | "clause" | "tail", mark?, text, n
 | `GET /catalogue/laws/search` | `q`, `limit` (≤500) | `{ hits: LawHit[] }` — provisions ranked in Postgres; a query naming a provision ("section 151", "o.39 r.1", "১৪৪") goes straight to it; matching laws come first as `kind: "act"` |
 | `GET /catalogue/laws/:slug` | | `{ law: LawRecord, parts: [{ id, title: Text, range, banner, sub, sections: [{ n, title: Text }] }], orders: [{ n, roman, title: Text, ruleCount }], translated }` |
 | `GET /catalogue/laws/:slug/text` | | `{ text: ActText }` — every part and section with body, footnotes and translation, for the reading view |
-| `GET /catalogue/laws/:slug/sections/:n` | | `{ section: SectionView }` — body, explanation, translation `{ title, body[], footnotes[] }`, footnotes, amendments, related, prev/next |
+| `GET /catalogue/laws/:slug/sections/:n` | | `{ section: SectionView }` — body, explanation, translation `{ title, body[], footnotes[] }`, footnotes, amendments, related, `relatedCases: RelatedEntry[]` (written in by the team), prev/next |
 | `GET /catalogue/laws/:slug/orders/:n` | | `{ order: { n, roman, title: Text, rules: [{ n, title: Text, body, translation }], prev, next } }` |
 | `GET /catalogue/laws/:slug/cases` | | `{ cases: RelatedCase[] }` — judgments citing the law, newest first, with `provision` and `refs` |
 | `GET /catalogue/cases` | `q`, `field=all\|title\|citation\|judge\|law`, `courts=AD,HCD`, `types=civil,…`, `yearFrom`, `yearTo`, `law` (slug or title words), `sort=latest\|oldest\|az\|za`, `page`, `perPage` (or `all`, up to 1,000) | `{ cases: CaseSummary[], total, page, perPage }` |
 | `GET /catalogue/cases/latest` | `limit` | `{ cases: CaseSummary[] }` — newest with a known date |
-| `GET /catalogue/cases/:slug` | | `{ case: CaseDetail }` — text (paragraphs), translation, parties, advocates, citations, `laws` with titles, related, prev/next |
+| `GET /catalogue/cases/:slug` | | `{ case: CaseDetail }` — text (paragraphs), translation, parties, advocates, citations, `laws` with titles, related, `relatedManual: [{ title, citation, url }]`, `lawsManual: [{ title, url }]`, prev/next |
 | `GET /catalogue/sitemap` | | `{ laws: [{ slug, updatedAt, text, orders: string[] }], cases: [{ slug, updatedAt }], sections }` — published laws (whether they have a full text, and their Orders), published judgments, and how many sections there are; for the reader site's sitemap |
 | `GET /catalogue/sitemap/sections` | `from`, `to` (inclusive, at most 20,000 apart) | `{ sections: [{ slug, n, updatedAt }] }` — sections of published laws in a stable order |
 | `GET /catalogue/home` | | `{ laws: LawRecord[6], cases: CaseSummary[5], sections: [{ href, law, n, label: Text, title: Text, lawTitle: Text, views: { month, week } }] }` |
@@ -42,6 +42,8 @@ CaseSummary = { slug, title, titleTr, citation, caseNo, court: "AD"|"HCD", date,
   keywords, excerpt, language, published, paragraphs, updatedAt,
   laws: [{ law, lawTitle: Text, readable, kind: "law"|"section"|"article"|"order"|"rule", n, rule }] }
 RelatedCase = { slug, title, citation, court, date, dateKnown, provision: { kind, n, rule }, refs: [...], summary, keywords }
+RelatedEntry = { slug: string | null, title, citation, url: string | null, court: "AD"|"HCD"|null, date: string | null }
+  // a judgment picked from the catalogue (slug set while it is published) or a case typed in by name and number
 ```
 
 `href` values are language-neutral site paths (`/dashboard/laws/cpc-1908/section-151`, `/bd/cases/<slug>`); the
@@ -53,17 +55,18 @@ reader site prefixes `/bn` itself.
 | --- | --- | --- | --- |
 | `GET /stats` | laws.view | | `{ laws, bangla, drafts, sections, translated, cases, casesDraft }` — the whole catalogue |
 | `GET /laws` | laws.view | `q`, `status=all\|published\|draft`, `type`, `subject`, `language`, `translation=none\|partial\|full`, `sort=updated\|az\|newest\|popular`, `page`, `perPage` | `{ laws: (LawRecord & { translated })[], total, … }`; `translation` filters on the share of sections translated (kept on `laws.translation_state` by a trigger) |
-| `GET /laws/:slug` | laws.view | | the public detail plus `text: ActText` and `history` |
+| `GET /laws/:slug` | laws.view | | the public detail plus `text: ActText`, `history` and `relatedCases: { [n]: RelatedEntry[] }` |
 | `GET /laws/:slug/history` | laws.view | | `{ history: [{ at, kind, n, law, by }] }` |
-| `POST /laws` | laws.add | `{ slug?, title, titleBn?, actNo, actNoBn?, year, type, status, subject, description, descriptionBn?, language, unit, longTitle, preamble, date, bdlawsId?, parts: [{ id, title, titleTr?, range, banner?, sub?, sections: [{ n, title, body, notes }] }], translations: { [n]: { title, b, f? } }, published }` | `201` the detail; drafts unless `published` |
+| `POST /laws` | laws.add | `{ slug?, title, titleBn?, actNo, actNoBn?, year, type, status, subject, description, descriptionBn?, language, unit, longTitle, preamble, date, bdlawsId?, parts: [{ id, title, titleTr?, range, banner?, sub?, sections: [{ n, title, body, notes, relatedCases? }] }], translations: { [n]: { title, b, f? } }, published }` | `201` the detail; drafts unless `published` |
 | `PATCH /laws/:slug` | laws.edit | any of the metadata fields | `{ law }` |
 | `POST /laws/:slug/publish` | laws.publish | `{ published }` | `{ law }` |
 | `PUT /laws/:slug/sections/:n` | laws.edit | `{ title, body, notes? }` | `{ section }` |
 | `PUT /laws/:slug/sections/:n/translation` | laws.translate | `{ title, b: string[], f?: string[] }` | `{ translation }` |
 | `DELETE /laws/:slug/sections/:n/translation` | laws.translate | | `204` |
+| `PUT /laws/:slug/sections/:n/related` | laws.edit | `{ cases: [{ case?: slug, title, citation, url? }] }` | `{ relatedCases }` — replaces the section's written-in cases (`case` picks a judgment; without it the entry is just its title and number) |
 | `GET /cases` | laws.view | `q`, `status`, `court`, `type`, `sort=updated\|latest\|oldest\|az`, `page`, `perPage` | `{ cases: CaseSummary[], total, … }` (drafts included) |
 | `GET /cases/:slug` | laws.view | | `{ case: CaseDetail, history }` |
-| `POST /cases` | laws.cases | `{ slug?, title, titleTr?, citation, caseNo, origin?, court, date?, dateKnown, hearing?, judges, author?, type, keywords, parties?, petition, advocates, excerpt, citationsReferred, related, source?, language, paragraphs, paragraphsTr?, laws: [{ law, kind, n, rule? }], published }` | `201 { case }` |
+| `POST /cases` | laws.cases | `{ slug?, title, titleTr?, citation, caseNo, origin?, court, date?, dateKnown, hearing?, judges, author?, type, keywords, parties?, petition, advocates, excerpt, citationsReferred, related, relatedManual?, lawsManual?, source?, language, paragraphs, paragraphsTr?, laws: [{ law, kind, n, rule? }], published }` | `201 { case }` |
 | `PATCH /cases/:slug` | laws.cases | any of those fields, `paragraphs`, `paragraphsTr` | `{ case }` |
 | `POST /cases/:slug/publish` | laws.publish | `{ published }` | `{ case }` |
 | `PUT /cases/:slug/links` | laws.link | `{ links: [{ law, kind, n, rule? }] }` | `{ case }` — replaces the citations; each one added or removed is a history entry |

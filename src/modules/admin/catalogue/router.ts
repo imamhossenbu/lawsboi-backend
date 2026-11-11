@@ -9,9 +9,10 @@ import type { TablesInsert } from "../../../types/database.js";
 import { logAudit } from "../../audit/service.js";
 import { findJudgment, getCase, listCases, summariesOf } from "../../catalogue/cases.service.js";
 import { findLaw, getActText, getLaw } from "../../catalogue/laws.service.js";
+import { lawRelatedCases, replaceSectionRelated } from "../../catalogue/related.service.js";
 import { slugParam } from "../../catalogue/schemas.js";
 import { fetchAll, lawRecordOf, statusIn, text, type Text } from "../../catalogue/shared.js";
-import { adminCasesQuery, adminLawsQuery, createCase, createLaw, linksPut, patchCase, patchLaw, sectionPatch, slugify, translationPut } from "./schemas.js";
+import { adminCasesQuery, adminLawsQuery, createCase, createLaw, linksPut, patchCase, patchLaw, relatedPut, sectionPatch, slugify, translationPut } from "./schemas.js";
 
 // Team: the Laws & case laws pages. Every change is written to catalogue_revisions (the item's History tab) and
 // to the audit log.
@@ -76,8 +77,8 @@ adminCatalogueRouter.get("/laws", validate("query", adminLawsQuery), async (req,
 /** A whole law for editing: metadata, outline, the full text with translations, and its history. */
 adminCatalogueRouter.get("/laws/:slug", validate("params", slugParam), async (req, res) => {
   const { slug } = parsed<{ slug: string }>(req, "params");
-  const [detail, actText, past] = await Promise.all([getLaw(slug, true), getActText(slug, true), history("law", slug)]);
-  res.json({ ...detail, text: actText, history: past });
+  const [detail, actText, past, relatedCases] = await Promise.all([getLaw(slug, true), getActText(slug, true), history("law", slug), lawRelatedCases(slug)]);
+  res.json({ ...detail, text: actText, history: past, relatedCases });
 });
 
 adminCatalogueRouter.get("/laws/:slug/history", validate("params", slugParam), async (req, res) => {
@@ -114,6 +115,7 @@ adminCatalogueRouter.post("/laws", requirePermission("laws.add"), validate("body
       if (e) throw new Error(`law_sections: ${e.message}`);
     }
   }
+  for (const s of sections) if (s.relatedCases?.length) await replaceSectionRelated(slug, s.n, s.relatedCases);
   await revision(req, "law", slug, "created");
   await logAudit(req, { action: "law.create", target: { type: "law", id: slug, label: lawLabel(law) } });
   res.status(201).json(await getLaw(slug, true));
@@ -166,6 +168,24 @@ adminCatalogueRouter.put("/laws/:slug/sections/:n", requirePermission("laws.edit
   await revision(req, "law", slug, "section", { n });
   await logAudit(req, { action: "law.section", target: { type: "law", id: slug, label: lawLabel(law) }, changes: [{ field: "section", to: n }] });
   res.json({ section: { n: section.n, title: section.title, body: section.body, notes: section.notes } });
+});
+
+/** Replaces the cases written in for a section: judgments picked from the catalogue or typed in by name and number. */
+adminCatalogueRouter.put("/laws/:slug/sections/:n/related", requirePermission("laws.edit"), validate("params", sectionParam), validate("body", relatedPut), async (req, res) => {
+  const { slug, n } = parsed<{ slug: string; n: string }>(req, "params");
+  const { cases } = req.body as z.infer<typeof relatedPut>;
+  const law = await findLaw(slug, true);
+  if (!(await db.from("law_sections").select("id").eq("law_slug", slug).eq("n", n).maybeSingle()).data) throw badRequest("That section isn't in this law.", { n: "unknown" });
+  const picked = [...new Set(cases.map((c) => c.case).filter((c): c is string => !!c))];
+  if (picked.length) {
+    const found = unwrap(await db.from("judgments").select("slug").in("slug", picked));
+    const missing = picked.filter((p) => !found.some((f) => f.slug === p));
+    if (missing.length) throw badRequest(`Unknown judgment: ${missing.join(", ")}`, { cases: "unknown" });
+  }
+  await replaceSectionRelated(slug, n, cases);
+  await revision(req, "law", slug, "section", { n });
+  await logAudit(req, { action: "law.section", target: { type: "law", id: slug, label: lawLabel(law) }, changes: [{ field: "relatedCases", of: n }] });
+  res.json({ relatedCases: (await lawRelatedCases(slug))[n] ?? [] });
 });
 
 adminCatalogueRouter.put("/laws/:slug/sections/:n/translation", requirePermission("laws.translate"), validate("params", sectionParam), validate("body", translationPut), async (req, res) => {
@@ -242,6 +262,8 @@ const caseColumns = (b: Partial<z.infer<typeof caseInfoShape>>) => ({
   ...(b.excerpt !== undefined && { excerpt: b.excerpt }),
   ...(b.citationsReferred !== undefined && { citations_referred: b.citationsReferred }),
   ...(b.related !== undefined && { related_slugs: b.related }),
+  ...(b.relatedManual !== undefined && { related_manual: b.relatedManual.map((c) => ({ title: c.title, citation: c.citation, ...(c.url ? { url: c.url } : {}) })) as never }),
+  ...(b.lawsManual !== undefined && { laws_manual: b.lawsManual.map((l) => ({ title: l.title, ...(l.url ? { url: l.url } : {}) })) as never }),
   ...(b.source !== undefined && { source: b.source as never }),
   ...(b.language !== undefined && { language: b.language }),
 });
