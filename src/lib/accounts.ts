@@ -105,10 +105,14 @@ const newRefresh = () => randomBytes(32).toString("base64url");
 const refreshExpiry = () => new Date(Date.now() + env.REFRESH_TOKEN_DAYS * 86_400_000).toISOString();
 
 /** Opens a session for this account and returns its tokens. */
+/** How many devices a reader can be signed in on at once; signing in on another signs out the one used longest ago. */
+export const READER_DEVICES = 2;
+
 export async function startSession(accountId: string): Promise<Tokens> {
   const refreshToken = newRefresh();
   const { data, error } = await db.from("sessions").insert({ account_id: accountId, refresh_hash: sha256(refreshToken), expires_at: refreshExpiry() }).select("id").single();
   if (error || !data) throw new Error(`Sessions: ${error?.message}`);
+  await keepDevices(accountId, data.id);
   const access = await accessToken(accountId, data.id);
   return { accessToken: access.token, refreshToken, expiresAt: access.expiresAt };
 }
@@ -149,6 +153,18 @@ export async function verifyAccessToken(token: string): Promise<{ id: string; em
   const account = data?.accounts as unknown as Pick<AccountRow, "id" | "email" | "disabled"> | undefined;
   if (!data || !account || account.disabled) return null;
   return { id: account.id, email: account.email, sessionId: data.id };
+}
+
+/** A reader stays signed in on READER_DEVICES devices at most: past that, the sessions used longest ago end (their
+ * access tokens stop working at once, so that device is signed out on its next request). Team accounts aren't
+ * limited. One account can't be passed around to read everything. */
+async function keepDevices(accountId: string, newest: string) {
+  // Team members (by their accounts' kind, or a team_members row for accounts moved over from before) aren't limited
+  const [account, member] = await Promise.all([accountById(accountId), db.from("team_members").select("id").eq("id", accountId).maybeSingle()]);
+  if ((account?.meta as AccountMeta | null)?.kind === "team" || member.data) return;
+  const { data } = await db.from("sessions").select("id,last_used_at").eq("account_id", accountId).neq("id", newest).order("last_used_at", { ascending: false });
+  const extra = (data ?? []).slice(READER_DEVICES - 1).map((x) => x.id);
+  if (extra.length) await db.from("sessions").delete().in("id", extra);
 }
 
 export async function endSession(sessionId: string) {
