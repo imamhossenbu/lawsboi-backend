@@ -40,7 +40,12 @@ export interface Access {
 
 async function viewerOf(user: string | null): Promise<Viewer> {
   if (!user) return "visitor";
-  const { data } = await db.from("profiles").select("plan_id, plans(price_monthly)").eq("id", user).maybeSingle();
+  // The team reads everything, like a paid plan (only the daily ceiling)
+  const [{ data }, member] = await Promise.all([
+    db.from("profiles").select("plan_id, plans(price_monthly)").eq("id", user).maybeSingle(),
+    db.from("team_members").select("id").eq("id", user).maybeSingle(),
+  ]);
+  if (member.data) return "paid";
   const price = (data?.plans as { price_monthly: number } | null)?.price_monthly ?? 0;
   return price > 0 ? "paid" : "free";
 }
