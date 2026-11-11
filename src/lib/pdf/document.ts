@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import PDFDocument from "pdfkit";
 
-// One look for every PDF the API makes (laws, judgments, invoices): A4, Noto Serif for Latin text and Noto Serif
+// One look for every PDF the API makes (laws, judgments, invoices): A4, Tinos for Latin text (metrically the same as
+// Times New Roman, which the reader site uses for laws and judgments, and free to embed; Apache 2.0) and Noto Serif
 // Bengali for Bangla (shaped by fontkit, so conjuncts join), the brand's green and gold, a running head and
 // "page n of N" on every page. Text mixing scripts is split into runs so each run gets a font that has its glyphs.
 
@@ -13,8 +14,8 @@ const logoMark = readFileSync(new URL("../../../assets/logo-mark.png", import.me
 let fonts: Record<string, Buffer> | null = null;
 const loadFonts = () =>
   (fonts ??= {
-    latin: fontFile("NotoSerif-Regular"),
-    latinBold: fontFile("NotoSerif-Bold"),
+    latin: fontFile("Tinos-Regular"),
+    latinBold: fontFile("Tinos-Bold"),
     bangla: fontFile("NotoSerifBengali-Regular"),
     banglaBold: fontFile("NotoSerifBengali-Bold"),
   });
