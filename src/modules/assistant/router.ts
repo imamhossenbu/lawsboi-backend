@@ -10,7 +10,7 @@ import { emptyRetrieved, isAboutLawsboi, isSmallTalk, readImages, withImageTerms
 import { assertAllowance, pinnedSource, usage, withPinned, type AskContext } from "./service.js";
 
 // Readers: ask the assistant (counted against the plan's monthly allowance), see the month's usage and their history.
-// Visitors get a few rate-limited, unlogged previews from the landing page, with a short answer.
+// Visitors get a few rate-limited, unlogged previews (the assistant page and the floating panel).
 // An answer is the matching sources plus a text written from them (answer.ts); a failed write still returns 201
 // with the sources, text: null and a reason, and still counts as a question.
 
@@ -52,7 +52,8 @@ assistantRouter.post("/preview", previews, validate("body", askSchema), async (r
   const pinned = await pinnedFor(b.context);
   // "hi", "thanks": a friendly line, no search
   const found = isSmallTalk(b.question) || isAboutLawsboi(b.question) ? emptyRetrieved(b.question, b.scope) : withPinned(await retrieveForAnswer(b.question, b.scope, b.lang, {}), pinned);
-  const written = await writeAnswer(b.question, b.lang, found, { short: true, caller: {}, ...(pinned && { pinned: pinned.note }) });
+  // The length follows the question (a greeting gets a line, a real situation gets its next steps), as for readers
+  const written = await writeAnswer(b.question, b.lang, found, { caller: {}, ...(pinned && { pinned: pinned.note }) });
   res.json({ answer: withWriting(found.answer, written) });
 });
 

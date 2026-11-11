@@ -3,7 +3,7 @@ import { aiConfigured, AiError, generate, generateJson, type AiPart, type AiUsag
 import { tracked, type Caller } from "../../lib/ai/usage.js";
 import { db } from "../../lib/supabase.js";
 import { latinDigits, type Text } from "../catalogue/shared.js";
-import { retrieve, type Answer, type Lang, type Retrieved, type Scope, type SourceHit, type SourceRef } from "./service.js";
+import { pinnedSource, retrieve, type Answer, type Lang, type Retrieved, type Scope, type SourceHit, type SourceRef } from "./service.js";
 
 // Writes the assistant's answer from the sources the search found, and only from them. Each source goes to the
 // model numbered, with its full text (not just the snippet); the model cites them as [1], [2]… and those markers
@@ -30,24 +30,32 @@ export interface Written {
   usage?: AiUsage;
 }
 
-/** Bangla script anywhere means the reader wrote in Bangla, whatever the site's language. */
-export const languageOf = (question: string, fallback: Lang): Lang => (/[ঀ-৿]/.test(question) ? "bn" : fallback);
+// Bangla written in Latin letters ("amar nam e mamla hoyeche"): a few very common words give it away
+const BANGLISH = /\b(?:ami|amar|amake|apni|apnar|tumi|tomar|ki|kivabe|kemne|kno|keno|hobe|hoyeche|hoise|korbo|korte|korle|parbo|jabe|dise|dise|nam|mamla|mamlay|thana|jamin|daray|dhara|ain|bhai|vai|ekta|kono|naki|tahole|ekhon)\b/gi;
+
+/** Bangla script anywhere, or plainly Banglish, means the reader wrote in Bangla, whatever the site's language. */
+export const languageOf = (question: string, fallback: Lang): Lang =>
+  /[ঀ-৿]/.test(question) || (question.match(BANGLISH)?.length ?? 0) >= 2 ? "bn" : fallback;
 
 const MAX_SOURCE_CHARS = 1_800;
 
 /* -------------------------------------------------------------- retrieval */
 
-const termsSchema = z.object({ terms: z.string().max(300) });
+const termsSchema = z.object({
+  terms: z.string().max(300),
+  // The provisions that most likely answer it, by the act's short name and section number ("Penal Code", "379")
+  provisions: z.array(z.object({ act: z.string().max(120), section: z.string().max(12) })).max(4).optional(),
+});
 
 /** English search words for a question, from the model: most of the catalogue (and every SCOB judgment) is in
  * English, so a Bangla question, or one in everyday words, finds nothing until it is put in the law's own terms. */
-async function searchTerms(question: string, caller: Caller) {
+async function searchTerms(question: string, caller: Caller): Promise<{ terms: string; provisions: { act: string; section: string }[] }> {
   const out = await tracked("assistant.terms", caller, () =>
     generateJson(
       {
         purpose: "assistant.terms",
         system:
-          "Turn the reader's question about Bangladeshi law into English full-text search terms: the legal concepts, the key words of the act's name, and synonyms the statute itself would use (e.g. dower, maintenance, bail, theft). Return 4 to 12 space-separated words. No numbers, no years, no punctuation.",
+          "Turn the reader's question about Bangladeshi law (in English, Bangla, or Bangla written in Latin letters) into English full-text search terms: the legal concepts, the key words of the act's name, and synonyms the statute itself would use (e.g. dower, maintenance, bail, theft). Put 4 to 12 space-separated words in `terms`: no numbers, no years, no punctuation. In `provisions`, name up to four sections of Bangladeshi statutes that most directly answer it, by the act's usual short name and the section number (e.g. a theft case: Penal Code 378 and 379; bail in a non-bailable offence: Code of Criminal Procedure 497). Leave `provisions` empty when unsure.",
         input: question,
         maxOutputTokens: 1_000,
         thinking: "minimal",
@@ -57,7 +65,34 @@ async function searchTerms(question: string, caller: Caller) {
     ),
   );
   // Numbers would match every "section 9" in the catalogue, so only words go to the search
-  return out.value.terms.replace(/[\d০-৯]+/g, " ").replace(/\s+/g, " ").trim();
+  return { terms: out.value.terms.replace(/[\d০-৯]+/g, " ").replace(/\s+/g, " ").trim(), provisions: out.value.provisions ?? [] };
+}
+
+/** The sections the model named, found in the catalogue (the act by its title, the section by number), as sources.
+ * They only lead the search: the answer is still written from, and cites, the sources. */
+async function namedSources(provisions: { act: string; section: string }[]) {
+  const found = await Promise.all(
+    provisions.map(async ({ act, section }) => {
+      const n = section.replace(/^(?:s(?:ection)?\.?\s*)/i, "").trim().toLowerCase();
+      const name = act.replace(/^the\s+/i, "").replace(/,?\s*\d{4}$/, "").trim();
+      if (!n || name.length < 3) return null;
+      const { data: laws } = await db.from("laws").select("slug").eq("published", true).ilike("title", `%${name}%`).order("views", { ascending: false }).limit(1);
+      const slug = laws?.[0]?.slug;
+      return slug ? pinnedSource({ kind: "law", slug, n }).catch(() => null) : null;
+    }),
+  );
+  return found.filter((x): x is NonNullable<typeof x> => !!x);
+}
+
+/** Puts the named sections first, dropping their repeats, keeping five laws at most. */
+function leadWith(r: Retrieved, named: { hit: SourceHit; ref: SourceRef }[]): Retrieved {
+  if (!named.length) return r;
+  const { laws, cases } = split(r);
+  const ids = new Set(named.map((x) => x.hit.id));
+  const keep = laws.hits.map((h, i) => ({ h, ref: laws.refs[i]! })).filter((x) => !ids.has(x.h.id));
+  const lawHits = [...named.map((x) => x.hit), ...keep.map((x) => x.h)].slice(0, 5);
+  const lawRefs = [...named.map((x) => x.ref), ...keep.map((x) => x.ref)].slice(0, 5);
+  return { answer: { ...r.answer, laws: lawHits }, refs: [...lawRefs, ...cases.refs] };
 }
 
 const hitCount = (r: Retrieved) => r.answer.laws.length + r.answer.cases.length;
@@ -89,17 +124,18 @@ export async function retrieveForAnswer(question: string, scope: Scope, lang: La
   const bangla = languageOf(question, lang) === "bn";
   if (!aiConfigured() || (!bangla && hitCount(first) >= 3)) return first;
   try {
-    const terms = await searchTerms(question, caller);
-    if (!terms) return first;
+    const { terms, provisions } = await searchTerms(question, caller);
+    const named = scope === "cases" ? [] : await namedSources(provisions);
+    if (!terms) return leadWith(first, named);
     const second = await retrieve(terms, scope, { anyWords: true });
     if (bangla) {
       const [s, f] = [split(second), split(first)];
       const laws = interleave(s.laws, f.laws, 5);
       const cases = interleave(s.cases, f.cases, 3);
-      return { answer: { query: question, scope, laws: laws.hits, cases: cases.hits }, refs: [...laws.refs, ...cases.refs] };
+      return leadWith({ answer: { query: question, scope, laws: laws.hits, cases: cases.hits }, refs: [...laws.refs, ...cases.refs] }, named);
     }
-    if (hitCount(second) <= hitCount(first)) return first;
-    return { answer: { ...second.answer, query: question }, refs: second.refs };
+    if (hitCount(second) <= hitCount(first)) return leadWith(first, named);
+    return leadWith({ answer: { ...second.answer, query: question }, refs: second.refs }, named);
   } catch {
     return first;
   }
@@ -111,7 +147,7 @@ export async function retrieveForAnswer(question: string, scope: Scope, lang: La
 export async function retrieveForFollowUp(question: string, previous: string, scope: Scope, lang: Lang, caller: Caller): Promise<Retrieved> {
   const own = await retrieveForAnswer(question, scope, lang, caller);
   try {
-    const terms = aiConfigured() ? await searchTerms(`Earlier question: ${previous}\nFollow-up question: ${question}`, caller) : `${previous} ${question}`;
+    const terms = aiConfigured() ? (await searchTerms(`Earlier question: ${previous}\nFollow-up question: ${question}`, caller)).terms : `${previous} ${question}`;
     if (!terms) return own;
     const context = await retrieve(terms, scope, { anyWords: !aiConfigured() });
     if (hitCount(context) === 0) return own;
@@ -152,11 +188,13 @@ export function systemInstruction(lang: Lang, short: boolean) {
     "For anything about the law, use ONLY the numbered sources you are given. Do not use outside knowledge for legal rules, and never invent sections, cases, dates or penalties.",
     "Cite the source behind every legal statement with its number in square brackets using Latin digits, like [1] or [2][3], right after the statement.",
     "If the sources don't answer the question, or only part of it, say so in a sentence and say what they do cover. If the message isn't really a legal question, reply naturally and briefly without forcing the sources in.",
-    `Write in ${language}. Keep section numbers, case citations and the names of acts as they appear in the sources.`,
+    `Write in ${language}. If the reader wrote Bangla in Latin letters (e.g. "amar nam e mamla hoyeche"), answer in Bangla script. Keep section numbers, case citations and the names of acts as they appear in the sources.`,
+    // Someone in a real situation (a case filed against them, a notice, a dispute) wants to understand it before seeing a lawyer
+    "When the reader describes their own situation (for example a case filed in their name, an arrest, a notice or a dispute), help them understand it before they see a lawyer: name the provisions that likely apply and what they say, citing the sources; explain what that usually means for them (is it bailable, what the court can do, what the other side must show); and give practical next steps: what to ask a lawyer, which papers and dates to gather (FIR or GD number, case number, notices, receipts), and any steps the sources mention such as applying for bail. Practical steps that aren't rules of law (gathering papers, noting dates, seeing a lawyer soon) need no citation; every statement about the law still does. Be calm and kind; don't predict the outcome.",
     short
       ? "Keep it to two or three sentences."
-      : "Use short paragraphs; a short list with lines starting \"- \" is fine for steps or elements. No headings, no bold, no markdown tables.",
-    "Only when the reader seems to face a real legal matter, add one short line that this is legal information, not legal advice. Don't add it to simple or general questions.",
+      : "Use short paragraphs; a short list with lines starting \"- \" is fine for steps or elements (use one for next steps). No headings, no bold, no markdown tables.",
+    "Only when the reader seems to face a real legal matter, end with one short line that this is general guidance, not legal advice, and they should consult a lawyer about their case. Don't add it to simple or general questions.",
   ].join("\n");
 }
 
