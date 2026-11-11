@@ -310,8 +310,14 @@ export async function getActText(slug: string, includeDrafts = false): Promise<A
 /* ------------------------------------------------------------- home page */
 
 /** The hand-picked laws for the home page, most read first. */
+/** The landing page's "most consulted laws" lead with these, in this order; the other curated laws follow by views. */
+const leadingLaws = ["crpc-1898", "penal-code-1860", "evidence-act-1872"];
+
 export async function popularLaws(limit = 6) {
-  const rows = unwrap(await db.from("laws").select("*").eq("published", true).eq("curated", true).order("views", { ascending: false }).limit(limit));
+  const curated = unwrap(await db.from("laws").select("*").eq("published", true).eq("curated", true).order("views", { ascending: false }).limit(limit + leadingLaws.length));
+  const rank = (slug: string) => (leadingLaws.includes(slug) ? leadingLaws.indexOf(slug) : leadingLaws.length);
+  // A stable sort keeps the rest in their views order
+  const rows = [...curated].sort((a, b) => rank(a.slug) - rank(b.slug)).slice(0, limit);
   const orders = await orderCounts();
   return rows.map((l) => lawRecordOf(l, orders.get(l.slug)));
 }
