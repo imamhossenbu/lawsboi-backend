@@ -53,7 +53,10 @@ describe("checkout, verification and refund", () => {
   it("creates an awaiting payment", async () => {
     const res = await request(server).post("/billing/checkout").set(auth(me.token)).send({ plan: "researcher", cycle: "monthly", method: "bkash", trxId: trxId.toLowerCase() });
     expect(res.status).toBe(201);
-    expect(res.body.payment).toMatchObject({ status: "awaiting", amount: 100, plan: "researcher", trxId });
+    // The plan's price as it stands (the team sets it in the admin), not a number written here
+    const { db } = await import("../src/lib/supabase.js");
+    const { data: plan } = await db.from("plans").select("price_monthly").eq("id", "researcher").single();
+    expect(res.body.payment).toMatchObject({ status: "awaiting", amount: Number(plan!.price_monthly), plan: "researcher", trxId });
     paymentId = res.body.payment.id;
     expect(paymentId).toMatch(/^PAY-\d{6}$/);
   });
